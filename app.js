@@ -127,6 +127,14 @@ function mucHtml(p, grande) {
     <div class="${caja} end"><p class="lbl">MUC diario</p><p class="num ${dia}">${fmtDiario(p.diario)}</p></div>
   </div>`;
 }
+function versionDe(text) {
+  const m = String(text || "").match(/(\d+\.\d+\.\d+)/);
+  return m ? m[1] : "";
+}
+function etiquetaServidor(nombre) {
+  const ver = versionDe(state.estados && state.estados[nombre]);
+  return ver ? nombre + " " + ver : nombre;
+}
 function motorDe(text) {
   const m = String(text || "").match(/MOTOR\s+(ON|OFF)\s+(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2})/i);
   if (!m) return "sin";
@@ -326,7 +334,7 @@ function render() {
     const n = state.marcados.length;
     servidoresHtml = servidores.length ? `<section class="pad">
       <h2>SERVIDORES</h2>
-      <div class="tabs">${servidores.map((s) => `<button class="line ${s === state.tab ? "on" : ""}" type="button" data-tab="${esc(s)}">${esc(s)}</button>`).join("")}</div>
+      <div class="tabs">${servidores.map((s) => `<button class="line ${s === state.tab ? "on" : ""}" type="button" data-tab="${esc(s)}">${esc(etiquetaServidor(s))}</button>`).join("")}</div>
       <p class="motor ${motor.cls}" data-motor="1">${motor.text}</p>
       <button class="line" id="actsrv" type="button">Actualizar servidor</button>
       <div class="picks">${checks || '<p class="sub">Este servidor no tiene personajes en el inventario.</p>'}</div>
@@ -513,6 +521,10 @@ function borrarEdit() {
 window.__estados = function (obj) {
   state.estados = obj || {};
   const el = document.querySelector("[data-motor]");
+  document.querySelectorAll("[data-tab]").forEach((btn) => {
+    const nombre = btn.getAttribute("data-tab") || "";
+    btn.textContent = etiquetaServidor(nombre);
+  });
   if (!el) return;
   const motor = motorInfo(state.tab);
   el.className = "motor " + motor.cls;
