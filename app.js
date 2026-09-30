@@ -541,6 +541,52 @@ if (state.cuenta) cargar();
 setInterval(() => {
   if (window.MU_MASTER && state.cuenta && state.pantalla === "lista" && window.Nativo && window.Nativo.estados) window.Nativo.estados();
 }, 20000);
+function origenLocal() {
+  const marcado = String(window.MU_ORIGEN || "").toUpperCase();
+  if (marcado === "LECTOR" || marcado === "MASTER" || marcado === "PAGINA") return marcado;
+  return window.MU_MASTER ? "MASTER" : "LECTOR";
+}
+function textoDeResultado(kind, name) {
+  if (kind === "OK") return "Conteo exitoso: " + name;
+  if (kind === "BOLSA") return "Falló el conteo de " + name + ": bolsa cerrada";
+  return "No se pudo sacar la foto de " + name;
+}
+function avisoDeRespuesta(map) {
+  const yo = origenLocal();
+  const lines = [];
+  Object.keys(map || {}).forEach((srv) => {
+    String(map[srv] || "").split(/\r?\n/).forEach((raw) => {
+      const m = raw.trim().match(/^(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}) (LECTOR|MASTER|PAGINA) (OK|BOLSA|FOTO) (.+)$/);
+      if (!m || m[2] !== yo) return;
+      lines.push({ t: m[1], kind: m[3], name: m[4] });
+    });
+  });
+  lines.sort((a, b) => (a.t < b.t ? -1 : a.t > b.t ? 1 : 0));
+  if (!lines.length) return "";
+  const visto = localStorage.getItem("mu-resp-visto") || "";
+  const recientes = (lista) => {
+    const ultima = lista[lista.length - 1];
+    const t = Date.parse(ultima.t.replace(" ", "T"));
+    if (!(t && Math.abs(Date.now() - t) < 6 * 3600 * 1000)) return [];
+    return lista.filter((line) => line.t === ultima.t);
+  };
+  const nuevas = visto ? lines.filter((line) => line.t > visto) : recientes(lines);
+  if (!nuevas.length) {
+    if (!visto) localStorage.setItem("mu-resp-visto", lines[lines.length - 1].t);
+    return state.avisoRespuesta || "";
+  }
+  localStorage.setItem("mu-resp-visto", nuevas[nuevas.length - 1].t);
+  return nuevas.map((line) => textoDeResultado(line.kind, line.name)).join(" · ");
+}
+window.__respuesta = function (obj) {
+  const texto = avisoDeRespuesta(obj);
+  if (!texto || texto === state.avisoRespuesta) return;
+  state.avisoRespuesta = texto;
+  state.aviso = texto;
+  const el = document.querySelector(".warn");
+  if (el) el.textContent = texto;
+  else render();
+};
 function avisoDeCola(map) {
   const lines = [];
   Object.keys(map || {}).forEach((srv) => {
@@ -559,7 +605,9 @@ window.__cola = function (obj) {
   const antes = state.avisoCola || "";
   if (texto === antes) return;
   state.avisoCola = texto;
-  if (texto) state.aviso = texto;
+  if (state.avisoRespuesta && !texto) return;
+  if (texto && state.avisoRespuesta) state.aviso = state.avisoRespuesta + " · " + texto;
+  else if (texto) state.aviso = texto;
   else if (state.aviso === antes) state.aviso = "";
   const el = document.querySelector(".warn");
   if (el) el.textContent = state.aviso || "";

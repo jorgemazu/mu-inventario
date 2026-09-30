@@ -181,7 +181,7 @@
       const quien = String(nombre || "").trim();
       const actualizar = accion === "actualizar";
       const activar = accion === "activar";
-      let linea = actualizar ? "ACTUALIZAR\n" : ((activar ? "ACTIVAR " : "FOTO ") + quien + "\n");
+      let linea = actualizar ? "ACTUALIZAR\n" : (activar ? ("ACTIVAR " + quien + "\n") : ("FOTO " + quien + " @PAGINA\n"));
       let aviso = actualizar ? ("Actualizar enviado: " + srv) : (activar ? ("Activar enviado: " + quien) : (quien.indexOf(",") >= 0 ? "Fotos y conteo enviados" : ("Foto y contar enviado: " + quien)));
       putText("servidores/" + srv + "/orden.txt", linea, linea.trim() + " " + srv)
         .then(function () { window.__apkEstado(aviso); })
@@ -211,12 +211,16 @@
       (async function () {
         const servers = await gh("GET", "/contents/servidores");
         const colas = {};
+        const respuestas = {};
         for (const item of servers) {
           if (!item || item.type !== "dir" || !item.name) continue;
           try { colas[item.name] = await fileText("servidores/" + item.name + "/cola.txt"); }
           catch (err) { colas[item.name] = ""; }
+          try { respuestas[item.name] = await fileText("servidores/" + item.name + "/respuesta.txt"); }
+          catch (err) { respuestas[item.name] = ""; }
         }
         window.__cola(colas);
+        if (window.__respuesta) window.__respuesta(respuestas);
       })().catch(function () {});
     },
     compartir: function (nombre, contenido) {
@@ -231,6 +235,7 @@
     salir: function () {}
   };
 
+  window.MU_ORIGEN = "PAGINA";
   const script = document.createElement("script");
   script.src = new URL("app.js", document.currentScript.src).href;
   document.body.appendChild(script);
