@@ -142,6 +142,40 @@
     return window.__publico;
   }
 
+  async function enviarOrdenPublica(srv, quien, aviso) {
+    const datos = await leerPublico();
+    const topic = String((datos && datos.buzon) || "").trim();
+    if (!/^[A-Za-z0-9_-]{16,80}$/.test(topic)) throw new Error("Todavía no se puede enviar desde la página");
+    if (!/^[A-Za-z0-9_-]{1,40}$/.test(srv)) throw new Error("Servidor no válido");
+    const res = await fetch("https://ntfy.sh/" + topic, {
+      method: "POST",
+      body: srv + "|FOTO " + quien + " @PAGINA",
+      headers: { Priority: "min", Title: "orden" }
+    });
+    if (!res.ok) throw new Error("No se pudo enviar la orden");
+    window.__apkEstado(aviso);
+  }
+
+  async function leerRespuestasPublicas(topic) {
+    if (!/^[A-Za-z0-9_-]{16,80}$/.test(String(topic || ""))) return;
+    const since = localStorage.getItem("mu-ntfy-since") || "30m";
+    const res = await fetch("https://ntfy.sh/" + topic + "/json?poll=1&since=" + encodeURIComponent(since), { cache: "no-store" });
+    if (!res.ok) return;
+    const text = await res.text();
+    let max = 0;
+    const lines = [];
+    text.split(/\n/).forEach(function (row) {
+      if (!row) return;
+      let msg = null;
+      try { msg = JSON.parse(row); } catch (err) { return; }
+      if (!msg || msg.event !== "message" || !msg.message) return;
+      if (/^\d{4}-\d{2}-\d{2} /.test(msg.message)) lines.push(msg.message);
+      if (msg.time && msg.time > max) max = msg.time;
+    });
+    if (max) localStorage.setItem("mu-ntfy-since", String(max));
+    if (lines.length && window.__respuesta) window.__respuesta({ pagina: lines.join("\n") });
+  }
+
   window.Nativo = {
     cargar: function () {
       (async function () {
@@ -176,13 +210,17 @@
       })().catch(function (err) { window.__error(err.message); });
     },
     orden: function (servidor, accion, nombre) {
-      if (!token()) { window.__error("Desde este enlace solo se ve el inventario"); return; }
       const srv = String(servidor || "").trim();
       const quien = String(nombre || "").trim();
       const actualizar = accion === "actualizar";
       const activar = accion === "activar";
-      let linea = actualizar ? "ACTUALIZAR\n" : (activar ? ("ACTIVAR " + quien + "\n") : ("FOTO " + quien + " @PAGINA\n"));
       let aviso = actualizar ? ("Actualizar enviado: " + srv) : (activar ? ("Activar enviado: " + quien) : (quien.indexOf(",") >= 0 ? "Fotos y conteo enviados" : ("Foto y contar enviado: " + quien)));
+      if (!token()) {
+        if (actualizar || activar) { window.__error("Desde este enlace solo se ve el inventario"); return; }
+        enviarOrdenPublica(srv, quien, aviso).catch(function (err) { window.__error(err.message); });
+        return;
+      }
+      let linea = actualizar ? "ACTUALIZAR\n" : (activar ? ("ACTIVAR " + quien + "\n") : ("FOTO " + quien + " @PAGINA\n"));
       putText("servidores/" + srv + "/orden.txt", linea, linea.trim() + " " + srv)
         .then(function () { window.__apkEstado(aviso); })
         .catch(function (err) { window.__error(err.message); });
@@ -205,7 +243,10 @@
     },
     cola: function () {
       if (!token()) {
-        leerPublico().then(function (datos) { window.__cola(datos.colas || {}); }).catch(function () {});
+        leerPublico().then(function (datos) {
+          window.__cola(datos.colas || {});
+          return leerRespuestasPublicas(datos && datos.buzon);
+        }).catch(function () {});
         return;
       }
       (async function () {

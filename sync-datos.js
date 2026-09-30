@@ -70,7 +70,8 @@ async function fileText(path) {
     estados[item.name] = await fileText("servidores/" + nombre + "/estado.txt");
     colas[item.name] = await fileText("servidores/" + nombre + "/cola.txt");
   }
-  const plain = Buffer.from(JSON.stringify({ cuentas: limpias, libros, estados, colas }));
+  const buzon = /^[A-Za-z0-9_-]{16,80}$/.test(process.env.NTFY_TOPIC || "") ? process.env.NTFY_TOPIC : "";
+  const plain = Buffer.from(JSON.stringify({ cuentas: limpias, libros, estados, colas, buzon }));
   const iv = crypto.randomBytes(12);
   const cipher = crypto.createCipheriv("aes-256-gcm", Buffer.from(pageKey, "hex"), iv);
   const ct = Buffer.concat([cipher.update(plain), cipher.final(), cipher.getAuthTag()]);
