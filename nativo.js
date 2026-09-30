@@ -1,10 +1,16 @@
 (function () {
   const KEY = "mu-gh-token";
+  const PAGE = "mu-pagina";
   const REPO = "https://api.github.com/repos/jorgemazu/farmboss-inventario";
 
   const hash = (location.hash || "").replace(/^#/, "").trim();
-  if (hash.length > 20) {
+  if (/^(ghp_|github_pat_|gho_)/.test(hash)) {
     localStorage.setItem(KEY, hash);
+    location.replace(location.pathname);
+    return;
+  }
+  if (/^[0-9a-f]{64}$/i.test(hash)) {
+    localStorage.setItem(PAGE, hash.toLowerCase());
     location.replace(location.pathname);
     return;
   }
@@ -13,27 +19,14 @@
     return (localStorage.getItem(KEY) || "").trim();
   }
 
-  function pedirClave(aviso) {
-    const app = document.getElementById("app");
-    app.innerHTML =
-      '<header><p class="kicker">MU</p><h1>MU MASTER INVENTARIO</h1></header>' +
-      '<section class="pad">' +
-      '<p class="sub">Pega una vez la clave de GitHub. Queda solo en este teléfono.</p>' +
-      (aviso ? '<p class="warn">' + aviso + '</p>' : '') +
-      '<input id="clave" type="password" autocomplete="off" placeholder="Clave">' +
-      '<button class="gold" id="entrar" type="button">Entrar</button>' +
-      '</section>';
-    document.getElementById("entrar").onclick = function () {
-      const valor = (document.getElementById("clave").value || "").trim();
-      if (!valor) return;
-      localStorage.setItem(KEY, valor);
-      location.replace(location.pathname);
-    };
+  function pageKey() {
+    return (localStorage.getItem(PAGE) || "").trim();
   }
 
-  if (!token() || /clave=mal/.test(location.search)) {
-    if (/clave=mal/.test(location.search)) localStorage.removeItem(KEY);
-    pedirClave(/clave=mal/.test(location.search) ? "La clave no sirve." : "");
+  if (!token() && !pageKey()) {
+    document.getElementById("app").innerHTML =
+      '<header><p class="kicker">MU</p><h1>MU INVENTARIO</h1></header>' +
+      '<section class="pad"><p class="sub">Este enlace no está completo.</p></section>';
     return;
   }
 
@@ -64,7 +57,7 @@
     });
     if (res.status === 401) {
       localStorage.removeItem(KEY);
-      location.replace(location.pathname + "?clave=mal");
+      location.replace(location.pathname);
       throw new Error("La clave no sirve");
     }
     if (res.status === 409) throw new Error("Alguien guardó al mismo tiempo. Intenta de nuevo.");
@@ -92,7 +85,7 @@
     });
     if (res.status === 401) {
       localStorage.removeItem(KEY);
-      location.replace(location.pathname + "?clave=mal");
+      location.replace(location.pathname);
       throw new Error("La clave no sirve");
     }
     if (res.status === 200) {
@@ -111,9 +104,52 @@
     await gh("PUT", "/contents/" + path, body);
   }
 
+  function hexBytes(hex) {
+    const out = new Uint8Array(hex.length / 2);
+    for (let i = 0; i < out.length; i++) out[i] = parseInt(hex.substr(i * 2, 2), 16);
+    return out;
+  }
+
+  function b64bytes(text) {
+    const bin = atob(text);
+    const out = new Uint8Array(bin.length);
+    for (let i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i);
+    return out;
+  }
+
+  function raiz() {
+    const p = location.pathname;
+    const i = p.indexOf("/lector/");
+    if (i >= 0) return p.slice(0, i + 1);
+    return p.replace(/[^/]*$/, "");
+  }
+
+  async function leerPublico() {
+    if (window.__publico) return window.__publico;
+    const clave = pageKey();
+    if (!clave) throw new Error("Este enlace no está completo");
+    const res = await fetch(raiz() + "datos.enc?v=" + Math.floor(Date.now() / 60000), { cache: "no-store" });
+    if (!res.ok) throw new Error("No se pudo leer el inventario (" + res.status + ")");
+    const pack = await res.json();
+    const rawKey = await crypto.subtle.importKey("raw", hexBytes(clave), "AES-GCM", false, ["decrypt"]);
+    let plain;
+    try {
+      plain = await crypto.subtle.decrypt({ name: "AES-GCM", iv: b64bytes(pack.iv) }, rawKey, b64bytes(pack.ct));
+    } catch (err) {
+      throw new Error("Este enlace no está completo");
+    }
+    window.__publico = JSON.parse(new TextDecoder().decode(plain));
+    return window.__publico;
+  }
+
   window.Nativo = {
     cargar: function () {
       (async function () {
+        if (!token()) {
+          const datos = await leerPublico();
+          window.__datos({ cuentas: datos.cuentas, libros: datos.libros, estados: datos.estados || {} });
+          return;
+        }
         const cuentas = JSON.parse(await fileText("cuentas.json"));
         const servers = await gh("GET", "/contents/servidores");
         const libros = {};
@@ -128,6 +164,7 @@
       })().catch(function (err) { window.__error(err.message); });
     },
     guardar: function (text) {
+      if (!token()) { window.__error("Desde este enlace solo se ve el inventario"); return; }
       (async function () {
         const file = await gh("GET", "/contents/cuentas.json");
         await gh("PUT", "/contents/cuentas.json", {
@@ -139,6 +176,7 @@
       })().catch(function (err) { window.__error(err.message); });
     },
     orden: function (servidor, accion, nombre) {
+      if (!token()) { window.__error("Desde este enlace solo se ve el inventario"); return; }
       const srv = String(servidor || "").trim();
       const quien = String(nombre || "").trim();
       const actualizar = accion === "actualizar";
@@ -150,6 +188,10 @@
         .catch(function (err) { window.__error(err.message); });
     },
     estados: function () {
+      if (!token()) {
+        leerPublico().then(function (datos) { window.__estados(datos.estados || {}); }).catch(function () {});
+        return;
+      }
       (async function () {
         const servers = await gh("GET", "/contents/servidores");
         const estados = {};
@@ -162,6 +204,10 @@
       })().catch(function () {});
     },
     cola: function () {
+      if (!token()) {
+        leerPublico().then(function (datos) { window.__cola(datos.colas || {}); }).catch(function () {});
+        return;
+      }
       (async function () {
         const servers = await gh("GET", "/contents/servidores");
         const colas = {};
