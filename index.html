@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<title>MU MASTER INVENTARIO</title>
+<style>
+  :root { color-scheme: dark; }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; background: #100e0c; color: #f4efe6; font-family: system-ui, sans-serif; }
+  button, input { font: inherit; color: inherit; }
+  #app { max-width: 430px; margin: 0 auto; min-height: 100dvh; }
+  main, header, .pad { padding: 16px; }
+  header { position: sticky; top: 0; background: rgba(16,14,12,.96); border-bottom: 1px solid #2a241c; }
+  .kicker, h2 { margin: 0; font-size: 11px; letter-spacing: .22em; color: #d4b06a; font-weight: 600; }
+  h1 { margin: 6px 0 0; font-size: 26px; line-height: 1.1; }
+  .sub, .fecha { color: #9a8f80; font-size: 12px; }
+  .warn { color: #e7b15a; font-size: 13px; }
+  .aviso { border: 1px solid #6b4e16; background: #2a2112; color: #f3e2b3; border-radius: 16px; padding: 10px 12px; font-size: 14px; }
+  .gold, .line, .danger, .pick { display: block; width: 100%; height: 44px; border-radius: 999px; margin-top: 10px; }
+  .gold { border: 0; background: #d4b06a; color: #1a1208; font-weight: 700; }
+  .line, .pick, .danger { border: 1px solid #3d3426; background: #1a1612; color: #d4b06a; font-weight: 650; }
+  .line.on, .pick.on { border-color: #d4b06a; background: #2a2112; color: #f3e2b3; }
+  .danger { border-color: #5c3030; color: #e7b15a; }
+  .pick { text-align: left; padding: 0 12px; border-radius: 16px; }
+  input { width: 100%; height: 48px; margin-top: 8px; border-radius: 16px; border: 1px solid #3d3426; background: #1a1612; padding: 0 14px; font-size: 18px; }
+  .tres { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; margin-top: 12px; }
+  .grande .caja { background: rgba(0,0,0,.3); border-radius: 16px; padding: 10px; }
+  .lbl { margin: 0; font-size: 10px; letter-spacing: .12em; text-transform: uppercase; color: #9a8f80; }
+  .num { margin: 4px 0 0; font-weight: 700; font-variant-numeric: tabular-nums; }
+  .grande .num { font-size: 18px; }
+  .mid { text-align: center; } .end { text-align: right; }
+  .cream { color: #f3e2b3; } .ok { color: #d4b06a; } .bad { color: #c47a6a; }
+  button.gold { color: #1a1208; }
+  .card { display: block; width: 100%; text-align: left; border: 1px solid #2a241c; background: #1a1612; border-radius: 16px; padding: 12px; margin-top: 8px; }
+  button.card { color: inherit; }
+  .hit { display: block; width: 100%; text-align: left; background: none; border: 0; padding: 0; color: inherit; }
+  .acts { display: flex; gap: 8px; margin-top: 10px; }
+  .acts .mini { width: auto; flex: 1; height: 40px; margin: 0; }
+  .tabs { display: flex; gap: 8px; overflow-x: auto; padding: 12px 16px 0; }
+  .tabs button { width: auto; flex: 0 0 auto; height: 40px; margin: 0; padding: 0 16px; }
+  .tabs button.on { background: #d4b06a; color: #1a1208; border: 0; }
+  .name { display: flex; justify-content: space-between; gap: 8px; align-items: baseline; }
+  .name span, .fecha { font-size: 11px; text-transform: uppercase; letter-spacing: .04em; }
+  .fecha { text-transform: none; letter-spacing: 0; }
+  .back, .text { background: none; border: 0; color: #d4b06a; padding: 0; height: auto; }
+  .row { display: flex; justify-content: space-between; align-items: center; }
+  .gap { margin-top: 22px; }
+  .big { font-size: 32px; font-weight: 700; margin: 4px 0; }
+  table { width: 100%; border-collapse: collapse; }
+  th, td { padding: 8px; font-size: 13px; border-bottom: 1px solid #2a241c; }
+  th { font-size: 10px; letter-spacing: .12em; text-transform: uppercase; color: #9a8f80; text-align: left; }
+  td.n, th.n { text-align: right; font-variant-numeric: tabular-nums; }
+  .motor { margin: 8px 0 0; font-size: 14px; font-weight: 700; }
+  .motor.on { color: #7dcea0; }
+  .motor.off { color: #e07a7a; }
+  .motor.sin { color: #e7b15a; }
+  .box { display: inline-block; width: 14px; height: 14px; margin-right: 10px; border: 1px solid #6b5c48; border-radius: 3px; vertical-align: -2px; }
+  .box.on { background: #d4b06a; border-color: #d4b06a; }
+  .pick { display: flex; align-items: center; }
+</style>
+</head>
+<body>
+<div id="app"></div>
+<script>window.MU_MASTER = true; window.APP_VERSION = "1"; window.APP_CODE = 10;</script>
+<script src="nativo.js"></script>
+</body>
+</html>
