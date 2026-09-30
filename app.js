@@ -266,9 +266,10 @@ function render() {
   if (state.pantalla === "detalle" && state.detalle) {
     const p = state.personajes.find((x) => x.nombre === state.detalle);
     if (!p) { state.pantalla = "lista"; render(); return; }
-    const rows = p.items.map((it) => `<tr><td>${esc(it.nombre)}</td><td class="n">${fmt(it.bolsa)}</td><td class="n">${fmt(it.baul)}</td><td class="n cream">${fmt(it.total)}</td></tr>`).join("");
+    const fila = (nombre, bolsa, baul, total) => `<tr><td>${esc(nombre)}</td><td class="n">${fmt(bolsa)}</td><td class="n">${fmt(baul)}</td><td class="n cream">${fmt(total)}</td></tr>`;
+    const rows = fila("ORO", p.oro, 0, p.oro) + fila("DIAMANTES", p.diamantes, 0, p.diamantes) + p.items.map((it) => fila(it.nombre, it.bolsa, it.baul, it.total)).join("");
     app.innerHTML = `<header>${bannerApk()}<button class="back" id="volver">‹ Volver</button><h1>${esc(p.nombre)}</h1><p class="sub">${esc(p.servidor)} · ${esc(p.fecha)}</p>${mucHtml(p, true)}</header>
-      <section class="pad"><p class="kicker">ÍTEMS</p>${rows ? `<table><tr><th>Ítem</th><th class="n">Bolsa</th><th class="n">Baúl</th><th class="n">Total</th></tr>${rows}</table>` : '<p class="sub">Esta lectura no tiene ítems.</p>'}</section>`;
+      <section class="pad"><p class="kicker">ÍTEMS</p><table><tr><th>Ítem</th><th class="n">Bolsa</th><th class="n">Baúl</th><th class="n">Total</th></tr>${rows}</table></section>`;
     app.querySelector("#volver").onclick = () => { state.pantalla = "lista"; state.detalle = null; render(); };
     return;
   }
