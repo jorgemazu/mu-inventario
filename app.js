@@ -318,7 +318,7 @@ function render() {
   const servidores = state.servidores.length ? state.servidores : [...new Set(state.personajes.map((p) => p.servidor).filter(Boolean))].sort((a, b) => a.localeCompare(b));
   const cards = state.personajes.map((p) => {
     const hit = `<button class="hit" type="button" data-n="${esc(p.nombre)}"><div class="name"><strong>${esc(p.nombre)}</strong><span>${esc(p.servidor)}</span></div>${mucHtml(p, false)}<p class="fecha">${esc(p.fecha)}</p></button>`;
-    const foto = `<button class="line mini" type="button" data-foto="${esc(p.nombre)}" data-srv="${esc(p.servidor)}">Foto y contar</button>`;
+    const foto = `<button class="line mini" type="button" data-foto="${esc(p.nombre)}" data-srv="${esc(p.servidor)}">Contar</button>`;
     const act = window.MU_MASTER ? "" : "";
     return `<div class="card">${hit}<div class="acts">${foto}${act}</div></div>`;
   }).join("");
@@ -338,15 +338,17 @@ function render() {
       <p class="motor ${motor.cls}" data-motor="1">${motor.text}</p>
       <button class="line" id="actsrv" type="button">Actualizar servidor</button>
       <div class="picks">${checks || '<p class="sub">Este servidor no tiene personajes en el inventario.</p>'}</div>
-      <button class="gold" id="sacar" type="button">${n ? "Sacar fotos y contar (" + n + ")" : "Sacar fotos y contar"}</button>
+      <button class="gold" id="sacar" type="button">${n ? "Contar (" + n + ")" : "Contar"}</button>
       <p class="sub">Los marcados de todas las pestañas. Primero las fotos, después el conteo.</p>
+      ${window.ES_PAGINA ? '<p class="sub">Contar puede demorar hasta 20 segundos en accionar.</p>' : ""}
     </section>` : `<section class="pad"><h2>SERVIDORES</h2><p class="sub">Ningún servidor acoplado. En FarmBoss aprieta Acoplar.</p></section>`;
   }
   const cuentas = window.MU_MASTER ? `<section class="pad"><div class="row"><h2>CUENTAS</h2><button class="text" id="nueva">Nueva cuenta</button></div>
     ${cuentasLista().map((row) => `<button class="card cuenta" data-c="${esc(row.numero)}"><div class="name"><strong>${esc(row.numero)}</strong><span>${esc(row.nombre || "Sin nombre")}</span></div><p class="fecha">${row.todas ? "Ve todas las instancias" : (row.instancias.join(", ") || "No ve ninguna instancia")}${row.actualizar ? " · puede actualizar" : ""}${row.control ? " · control" : ""}</p></button>`).join("")}
     </section>` : "";
-  const personajes = `<section class="pad"><h2>PERSONAJES</h2><div class="list">${cards || '<p class="sub">Todavía no hay personajes en el inventario.</p>'}</div></section>`;
-  app.innerHTML = `<header><p class="kicker">MU</p><h1>${esc(titulo())}</h1>${botonesComunes()}</header>${window.MU_MASTER ? personajes + servidoresHtml + cuentas : `<div class="pad list">${cards || '<p class="sub">No hay instancias para esta cuenta.</p>'}</div>`}`;
+  const notaContar = window.ES_PAGINA ? `<p class="sub">Contar puede demorar hasta 20 segundos en accionar.</p>` : "";
+  const personajes = `<section class="pad"><h2>PERSONAJES</h2><div class="list">${cards || '<p class="sub">Todavía no hay personajes en el inventario.</p>'}</div>${notaContar}</section>`;
+  app.innerHTML = `<header><p class="kicker">MU</p><h1>${esc(titulo())}</h1>${botonesComunes()}</header>${window.MU_MASTER ? personajes + servidoresHtml + cuentas : `<div class="pad list">${cards || '<p class="sub">No hay instancias para esta cuenta.</p>'}</div>${notaContar}`}`;
   const listaBtn = app.querySelector("#listaBtn");
   if (listaBtn) listaBtn.onclick = () => { if (window.Nativo) window.Nativo.compartir("inventario-maestro.xls", listaXml()); };
   const upd = app.querySelector("#upd");
