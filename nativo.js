@@ -186,6 +186,6 @@
   };
 
   const script = document.createElement("script");
-  script.src = "app.js";
+  script.src = new URL("app.js", document.currentScript.src).href;
   document.body.appendChild(script);
 })();
