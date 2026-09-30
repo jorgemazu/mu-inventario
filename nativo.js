@@ -2,6 +2,13 @@
   const KEY = "mu-gh-token";
   const REPO = "https://api.github.com/repos/jorgemazu/farmboss-inventario";
 
+  const hash = (location.hash || "").replace(/^#/, "").trim();
+  if (hash.length > 20) {
+    localStorage.setItem(KEY, hash);
+    location.replace(location.pathname);
+    return;
+  }
+
   function token() {
     return (localStorage.getItem(KEY) || "").trim();
   }
