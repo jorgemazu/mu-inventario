@@ -563,6 +563,9 @@ function origenLocal() {
 }
 function textoDeResultado(kind, name) {
   if (kind === "OK") return "Conteo exitoso: " + name;
+  if (kind === "REINTENTO") return name + ": lo va a reintentar";
+  if (kind === "COLA") return name + ": va a cola, lo va a reintentar";
+  if (kind === "FALLO3") return name + ": fallo por tercera vez intentar mas tarde";
   if (kind === "BOLSA") return "Falló el conteo de " + name + ": bolsa cerrada";
   return "No se pudo sacar la foto de " + name;
 }
@@ -571,7 +574,7 @@ function avisoDeRespuesta(map) {
   const lines = [];
   Object.keys(map || {}).forEach((srv) => {
     String(map[srv] || "").split(/\r?\n/).forEach((raw) => {
-      const m = raw.trim().match(/^(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}) (LECTOR|MASTER|PAGINA) (OK|BOLSA|FOTO) (.+)$/);
+      const m = raw.trim().match(/^(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}) (LECTOR|MASTER|PAGINA) (OK|BOLSA|FOTO|REINTENTO|COLA|FALLO3) (.+)$/);
       if (!m || m[2] !== yo) return;
       lines.push({ t: m[1], kind: m[3], name: m[4] });
     });
