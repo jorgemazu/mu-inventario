@@ -181,20 +181,23 @@
       (async function () {
         if (!token()) {
           const datos = await leerPublico();
-          window.__datos({ cuentas: datos.cuentas, libros: datos.libros, estados: datos.estados || {} });
+          window.__datos({ cuentas: datos.cuentas, libros: datos.libros, estados: datos.estados || {}, pruebas: datos.pruebas || {} });
           return;
         }
         const cuentas = JSON.parse(await fileText("cuentas.json"));
         const servers = await gh("GET", "/contents/servidores");
         const libros = {};
         const estados = {};
+        const pruebas = {};
         for (const item of servers) {
           if (!item || item.type !== "dir" || !item.name) continue;
           libros[item.name] = JSON.parse(await fileText("servidores/" + item.name + "/libro.json"));
           try { estados[item.name] = await fileText("servidores/" + item.name + "/estado.txt"); }
           catch (err) { estados[item.name] = ""; }
+          try { pruebas[item.name] = JSON.parse(await fileText("servidores/" + item.name + "/prueba.json")); }
+          catch (err) { pruebas[item.name] = []; }
         }
-        window.__datos({ cuentas: cuentas, libros: libros, estados: estados });
+        window.__datos({ cuentas: cuentas, libros: libros, estados: estados, pruebas: pruebas });
       })().catch(function (err) { window.__error(err.message); });
     },
     guardar: function (text) {
@@ -278,6 +281,6 @@
 
   window.MU_ORIGEN = "PAGINA";
   const script = document.createElement("script");
-  script.src = new URL("app.js?v=112", document.currentScript.src).href;
+  script.src = new URL("app.js?v=113", document.currentScript.src).href;
   document.body.appendChild(script);
 })();
