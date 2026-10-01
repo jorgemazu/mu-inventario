@@ -62,6 +62,7 @@ async function fileText(path) {
   const libros = {};
   const estados = {};
   const colas = {};
+  const pruebas = {};
   for (const item of servers || []) {
     if (!item || item.type !== "dir" || !item.name) continue;
     const nombre = encodeURIComponent(item.name);
@@ -69,9 +70,13 @@ async function fileText(path) {
     if (libro) libros[item.name] = JSON.parse(libro);
     estados[item.name] = await fileText("servidores/" + nombre + "/estado.txt");
     colas[item.name] = await fileText("servidores/" + nombre + "/cola.txt");
+    const prueba = await fileText("servidores/" + nombre + "/prueba.json");
+    if (prueba) {
+      try { pruebas[item.name] = JSON.parse(prueba); } catch (err) { pruebas[item.name] = []; }
+    }
   }
   const buzon = /^[A-Za-z0-9_-]{16,80}$/.test(process.env.NTFY_TOPIC || "") ? process.env.NTFY_TOPIC : "";
-  const plain = Buffer.from(JSON.stringify({ cuentas: limpias, libros, estados, colas, buzon }));
+  const plain = Buffer.from(JSON.stringify({ cuentas: limpias, libros, estados, colas, pruebas, buzon }));
   const iv = crypto.randomBytes(12);
   const cipher = crypto.createCipheriv("aes-256-gcm", Buffer.from(pageKey, "hex"), iv);
   const ct = Buffer.concat([cipher.update(plain), cipher.final(), cipher.getAuthTag()]);
