@@ -128,7 +128,7 @@
     if (window.__publico) return window.__publico;
     const clave = pageKey();
     if (!clave) throw new Error("Este enlace no está completo");
-    const res = await fetch(raiz() + "datos.enc?v=" + Math.floor(Date.now() / 60000), { cache: "no-store" });
+    const res = await fetch("https://raw.githubusercontent.com/jorgemazu/mu-inventario/main/datos.enc?v=" + Date.now(), { cache: "no-store" });
     if (!res.ok) throw new Error("No se pudo leer el inventario (" + res.status + ")");
     const pack = await res.json();
     const rawKey = await crypto.subtle.importKey("raw", hexBytes(clave), "AES-GCM", false, ["decrypt"]);
