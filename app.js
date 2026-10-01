@@ -563,8 +563,8 @@ function origenLocal() {
 }
 function textoDeResultado(kind, name) {
   if (kind === "OK") return "Conteo exitoso: " + name;
-  if (kind === "REINTENTO") return name + ": lo va a reintentar";
-  if (kind === "COLA") return name + ": va a cola, lo va a reintentar";
+  if (kind === "REINTENTO") return name + ": fallo, lo va a reintentar";
+  if (kind === "COLA") return name + ": fallo, va a cola, lo va a reintentar";
   if (kind === "FALLO3") return name + ": fallo por tercera vez intentar mas tarde";
   if (kind === "BOLSA") return "Falló el conteo de " + name + ": bolsa cerrada";
   return "No se pudo sacar la foto de " + name;
