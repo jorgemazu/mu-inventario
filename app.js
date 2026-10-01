@@ -1,6 +1,6 @@
 const MONEDAS = new Set(["ORO", "MUC", "BOUND MUC", "BOUND", "DIAMANTES"]);
 const KEY = window.MU_MASTER ? "mu-master-cuenta" : "mu-cuenta";
-const state = { cuenta: localStorage.getItem(KEY) || "", archivo: null, personajes: [], aviso: "", pantalla: "lista", detalle: null, edit: null, ocupado: false, apkNueva: false, instalando: false, tab: "", marcados: [], estados: {}, servidores: [] };
+const state = { cuenta: localStorage.getItem(KEY) || "", archivo: null, personajes: [], aviso: "", pantalla: "lista", detalle: null, edit: null, ocupado: false, apkNueva: false, instalando: false, tab: "", marcados: [], estados: {}, servidores: [], pruebas: {} };
 
 function esc(s) { return String(s ?? "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;"); }
 function fmt(n) { return new Intl.NumberFormat("es-CL", { maximumFractionDigits: 0 }).format(n || 0); }
@@ -147,6 +147,24 @@ function motorInfo(nombre) {
   if (modo === "on") return { cls: "on", text: "Motor activo" };
   if (modo === "off") return { cls: "off", text: "Motor detenido" };
   return { cls: "sin", text: "Sin señal" };
+}
+function filasPrueba() {
+  const out = [];
+  Object.entries(state.pruebas || {}).forEach(([srv, rows]) => {
+    (Array.isArray(rows) ? rows : []).forEach((row) => {
+      if (!row) return;
+      out.push({
+        cuando: row.cuando || "",
+        cuenta: row.cuenta || "",
+        tipo: row.tipo || "",
+        ok: !!row.ok,
+        nota: row.nota || "",
+        servidor: srv
+      });
+    });
+  });
+  out.sort((a, b) => String(b.cuando).localeCompare(String(a.cuando)));
+  return out.slice(0, 40);
 }
 function claveDe(servidor, nombre) { return servidor + "\n" + nombre; }
 
@@ -325,24 +343,35 @@ function render() {
   }).join("");
   let servidoresHtml = "";
   if (window.MU_MASTER) {
-    if (servidores.length && !servidores.includes(state.tab)) state.tab = servidores[0];
-    const delTab = state.personajes.filter((p) => p.servidor === state.tab);
-    const motor = motorInfo(state.tab);
-    const checks = delTab.map((p) => {
-      const on = state.marcados.includes(claveDe(p.servidor, p.nombre));
-      return `<button class="pick ${on ? "on" : ""}" type="button" data-check="${esc(p.nombre)}" data-srv="${esc(p.servidor)}"><span class="box ${on ? "on" : ""}"></span>${esc(p.nombre)}</button>`;
-    }).join("");
-    const n = state.marcados.length;
-    servidoresHtml = servidores.length ? `<section class="pad">
-      <h2>SERVIDORES</h2>
-      <div class="tabs">${servidores.map((s) => `<button class="line ${s === state.tab ? "on" : ""}" type="button" data-tab="${esc(s)}">${esc(etiquetaServidor(s))}</button>`).join("")}</div>
-      <p class="motor ${motor.cls}" data-motor="1">${motor.text}</p>
-      <button class="line" id="actsrv" type="button">Actualizar servidor</button>
-      <div class="picks">${checks || '<p class="sub">Este servidor no tiene personajes en el inventario.</p>'}</div>
-      <button class="gold" id="sacar" type="button">${n ? "Contar (" + n + ")" : "Contar"}</button>
-      <p class="sub">Los marcados de todas las pestañas. Primero las fotos, después el conteo.</p>
-      ${window.ES_PAGINA ? '<p class="sub">Contar puede demorar hasta 20 segundos en accionar.</p>' : ""}
-    </section>` : `<section class="pad"><h2>SERVIDORES</h2><p class="sub">Ningún servidor acoplado. En FarmBoss aprieta Acoplar.</p></section>`;
+    const tabs = ["prueba"].concat(servidores);
+    if (!tabs.includes(state.tab)) state.tab = servidores[0] || "prueba";
+    const tabBtns = `<button class="line ${state.tab === "prueba" ? "on" : ""}" type="button" data-tab="prueba">Prueba</button>` +
+      servidores.map((s) => `<button class="line ${s === state.tab ? "on" : ""}" type="button" data-tab="${esc(s)}">${esc(etiquetaServidor(s))}</button>`).join("");
+    let cuerpo = "";
+    if (state.tab === "prueba") {
+      const rows = filasPrueba().map((r) => {
+        const titulo = r.tipo === "cuenta" ? "Cuenta de prueba" : "Fotos de prueba";
+        return `<div class="card"><div class="name"><strong>${esc(r.cuenta || "sin cuenta")}</strong><span class="${r.ok ? "ok" : "bad"}">${r.ok ? "ok" : "fallo"}</span></div><p class="fecha">${esc(titulo)} · ${esc(r.servidor)} · ${esc(r.cuando)}</p><p class="sub">${esc(r.nota)}</p></div>`;
+      }).join("");
+      cuerpo = `<div class="list">${rows || '<p class="sub">Todavía no hay pruebas.</p>'}</div><p class="sub">No entra al inventario. Solo dice si las fotos y el conteo de prueba salieron bien.</p>`;
+    } else if (!servidores.length) {
+      cuerpo = `<p class="sub">Ningún servidor acoplado. En FarmBoss aprieta Acoplar.</p>`;
+    } else {
+      const delTab = state.personajes.filter((p) => p.servidor === state.tab);
+      const motor = motorInfo(state.tab);
+      const checks = delTab.map((p) => {
+        const on = state.marcados.includes(claveDe(p.servidor, p.nombre));
+        return `<button class="pick ${on ? "on" : ""}" type="button" data-check="${esc(p.nombre)}" data-srv="${esc(p.servidor)}"><span class="box ${on ? "on" : ""}"></span>${esc(p.nombre)}</button>`;
+      }).join("");
+      const n = state.marcados.length;
+      cuerpo = `<p class="motor ${motor.cls}" data-motor="1">${motor.text}</p>
+        <button class="line" id="actsrv" type="button">Actualizar servidor</button>
+        <div class="picks">${checks || '<p class="sub">Este servidor no tiene personajes en el inventario.</p>'}</div>
+        <button class="gold" id="sacar" type="button">${n ? "Contar (" + n + ")" : "Contar"}</button>
+        <p class="sub">Los marcados de todas las pestañas. Primero las fotos, después el conteo.</p>
+        ${window.ES_PAGINA ? '<p class="sub">Contar puede demorar hasta 20 segundos en accionar.</p>' : ""}`;
+    }
+    servidoresHtml = `<section class="pad"><h2>SERVIDORES</h2><div class="tabs">${tabBtns}</div>${cuerpo}</section>`;
   }
   const cuentas = window.MU_MASTER ? `<section class="pad"><div class="row"><h2>CUENTAS</h2><button class="text" id="nueva">Nueva cuenta</button></div>
     ${cuentasLista().map((row) => `<button class="card cuenta" data-c="${esc(row.numero)}"><div class="name"><strong>${esc(row.numero)}</strong><span>${esc(row.nombre || "Sin nombre")}</span></div><p class="fecha">${row.todas ? "Ve todas las instancias" : (row.instancias.join(", ") || "No ve ninguna instancia")}${row.actualizar ? " · puede actualizar" : ""}${row.control ? " · control" : ""}</p></button>`).join("")}
@@ -435,6 +464,7 @@ window.__datos = function (pack) {
   procesar(pack.libros || {});
   state.servidores = Object.keys(pack.libros || {}).sort((a, b) => a.localeCompare(b));
   state.estados = pack.estados || {};
+  state.pruebas = pack.pruebas || {};
   state.aviso = "";
   render();
 };
