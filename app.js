@@ -338,9 +338,10 @@ function render() {
   if (state.pantalla === "detalle" && state.detalle) {
     const p = state.personajes.find((x) => x.nombre === state.detalle);
     if (!p) { state.pantalla = "lista"; render(); return; }
+    const v = vistaDe(p);
     const fila = (nombre, bolsa, baul, total) => `<tr><td>${esc(nombre)}</td><td class="n">${fmt(bolsa)}</td><td class="n">${fmt(baul)}</td><td class="n cream">${fmt(total)}</td></tr>`;
-    const rows = fila("ORO", p.oro, 0, p.oro) + fila("DIAMANTES", p.diamantes, 0, p.diamantes) + p.items.map((it) => fila(it.nombre, it.bolsa, it.baul, it.total)).join("");
-    app.innerHTML = `<header>${bannerApk()}<button class="back" id="volver">‹ Volver</button><h1>${esc(p.nombre)}</h1><p class="sub">${esc(p.servidor)} · ${esc(p.fecha)}</p>${mucHtml(p, true)}</header>
+    const rows = fila("ORO", v.oro, 0, v.oro) + fila("BOUND MUC", v.bound, 0, v.bound) + fila("DIAMANTES", v.diamantes, 0, v.diamantes) + (v.items || []).map((it) => fila(it.nombre, it.bolsa, it.baul, it.total)).join("");
+    app.innerHTML = `<header>${bannerApk()}<button class="back" id="volver">‹ Volver</button><h1>${esc(p.nombre)}</h1><p class="sub">${esc(p.servidor)} · ${esc(v.fecha || p.fecha)}</p>${mucHtml(p, true)}</header>
       <section class="pad"><p class="kicker">ÍTEMS</p><table><tr><th>Ítem</th><th class="n">Bolsa</th><th class="n">Baúl</th><th class="n">Total</th></tr>${rows}</table></section>`;
     app.querySelector("#volver").onclick = () => { state.pantalla = "lista"; state.detalle = null; render(); };
     return;
@@ -429,7 +430,9 @@ function render() {
 
   const servidores = state.servidores.length ? state.servidores : [...new Set(state.personajes.map((p) => p.servidor).filter(Boolean))].sort((a, b) => a.localeCompare(b));
   const cards = state.personajes.map((p) => {
-    const hit = `<button class="hit" type="button" data-n="${esc(p.nombre)}"><div class="name"><strong>${esc(p.nombre)}</strong><span>${esc(p.servidor)}</span></div>${mucHtml(p, false)}<p class="fecha">${esc(p.fecha)}</p></button>`;
+    const v = vistaDe(p);
+    const joyas = (v.items || []).map((it) => `<span>${esc(it.nombre)} ${fmt(it.total)}</span>`).join("");
+    const hit = `<button class="hit" type="button" data-n="${esc(p.nombre)}"><div class="name"><strong>${esc(p.nombre)}</strong><span>${esc(p.servidor)}</span></div>${mucHtml(p, false)}<p class="bound">Bound MUC ${fmt(v.bound)}</p>${joyas ? `<div class="joyas">${joyas}</div>` : ""}<p class="fecha">${esc(v.fecha || p.fecha)}</p></button>`;
     const on = !!state.nobot[p.nombre];
     const nobot = `<label class="nobot"><input type="checkbox" data-nobot="${esc(p.nombre)}" ${on ? "checked" : ""}/>NO BOT items</label>`;
     const foto = `<button class="line mini" type="button" data-foto="${esc(p.nombre)}" data-srv="${esc(p.servidor)}">Contar</button>`;
