@@ -25,4 +25,5 @@ jobs:
           git add datos.enc
           git diff --cached --quiet && exit 0
           git commit -m "Actualiza el inventario"
+          git pull --rebase origin main
           git push
