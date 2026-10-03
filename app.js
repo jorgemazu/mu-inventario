@@ -431,7 +431,7 @@ function render() {
   const cards = state.personajes.map((p) => {
     const hit = `<button class="hit" type="button" data-n="${esc(p.nombre)}"><div class="name"><strong>${esc(p.nombre)}</strong><span>${esc(p.servidor)}</span></div>${mucHtml(p, false)}<p class="fecha">${esc(p.fecha)}</p></button>`;
     const on = !!state.nobot[p.nombre];
-    const nobot = `<label class="nobot"><input type="checkbox" data-nobot="${esc(p.nombre)}" ${on ? "checked" : ""}/>NO BOT</label>`;
+    const nobot = `<label class="nobot"><input type="checkbox" data-nobot="${esc(p.nombre)}" ${on ? "checked" : ""}/>NO BOT items</label>`;
     const foto = `<button class="line mini" type="button" data-foto="${esc(p.nombre)}" data-srv="${esc(p.servidor)}">Contar</button>`;
     const items = `<button class="line mini" type="button" data-items="${esc(p.nombre)}" data-srv="${esc(p.servidor)}">Contar items y muc</button>`;
     return `<div class="card">${hit}${nobot}<div class="acts">${foto}${items}</div></div>`;
@@ -519,7 +519,7 @@ function render() {
     if (!window.Nativo || !window.Nativo.orden) { state.aviso = "Actualiza la app para enviar la orden"; render(); return; }
     state.aviso = "Enviando...";
     render();
-    window.Nativo.orden(servidor, items ? "items" : "foto", nombre, state.nobot[nombre] ? "1" : "0");
+    window.Nativo.orden(servidor, items ? "items" : "foto", nombre, items && state.nobot[nombre] ? "1" : "0");
   });
   app.querySelectorAll("[data-nobot]").forEach((box) => box.onchange = () => {
     state.nobot[box.getAttribute("data-nobot")] = box.checked;
@@ -698,7 +698,7 @@ function textoDeResultado(kind, name) {
   if (kind === "COLA") return name + ": fallo, va a cola, lo va a reintentar";
   if (kind === "FALLO3") return name + ": fallo por tercera vez intentar mas tarde";
   if (kind === "BOLSA") return "Falló el conteo de " + name + ": bolsa cerrada";
-  return "No se pudo sacar la foto de " + name;
+  return "volver a intentar foto fallida: " + name;
 }
 function avisoDeRespuesta(map) {
   const yo = origenLocal();
