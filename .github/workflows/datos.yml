@@ -17,7 +17,6 @@ jobs:
         env:
           FARM_TOKEN: ${{ secrets.FARM_TOKEN }}
           PAGE_KEY: ${{ secrets.PAGE_KEY }}
-          FARM_API: ${{ secrets.FARM_API }}
         run: node sync-datos.js
       - name: Publicar
         run: |

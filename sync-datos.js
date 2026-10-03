@@ -3,13 +3,39 @@ const crypto = require("crypto");
 const fs = require("fs");
 
 const pageKey = process.env.PAGE_KEY || "";
-const apiKey = process.env.FARM_API || "";
-if (!/^[0-9a-f]{64}$/i.test(pageKey) || !apiKey) {
+const githubToken = process.env.FARM_TOKEN || "";
+if (!/^[0-9a-f]{64}$/i.test(pageKey) || !githubToken) {
   console.error("faltan datos");
   process.exit(1);
 }
 
-const SERVIDORES = ["servidor1", "servidor2"];
+function githubFile(path) {
+  return new Promise((resolve, reject) => {
+    const req = https.request(
+      {
+        hostname: "api.github.com",
+        path: "/repos/jorgemazu/farmboss-inventario/contents/" + path,
+        headers: {
+          Authorization: "Bearer " + githubToken,
+          Accept: "application/vnd.github.raw",
+          "User-Agent": "mu-inventario",
+          "X-GitHub-Api-Version": "2022-11-28",
+        },
+      },
+      (res) => {
+        const chunks = [];
+        res.on("data", (c) => chunks.push(c));
+        res.on("end", () => {
+          const text = Buffer.concat(chunks).toString("utf8");
+          if (res.statusCode !== 200) return reject(new Error("clave " + res.statusCode));
+          resolve(text.trim());
+        });
+      },
+    );
+    req.on("error", reject);
+    req.end();
+  });
+}
 
 function pedir(nombre, path) {
   return new Promise((resolve, reject) => {
@@ -40,6 +66,8 @@ function fechaDe(row) {
 }
 
 (async () => {
+  const apiKey = process.env.FARM_API || (await githubFile("programa/remote.token"));
+  if (!apiKey) throw new Error("sin clave");
   const vivos = [];
   for (const nombre of SERVIDORES) {
     try {
