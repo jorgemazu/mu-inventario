@@ -740,6 +740,13 @@ window.__respuesta = function (obj) {
   if (el) el.textContent = texto;
   else render();
 };
+function esTecnico(texto) {
+  return /^libro local\b/i.test(texto) || /\bmuc=/i.test(texto) || /\biconos=/i.test(texto) || /[A-Za-z]:\\/.test(texto);
+}
+function muestraPaso(texto) {
+  if (window.MU_MASTER && !window.ES_PAGINA) return true;
+  return !esTecnico(texto);
+}
 function lineasDeCola(map) {
   const pasos = [];
   const colas = [];
@@ -748,7 +755,7 @@ function lineasDeCola(map) {
       const line = raw.trim();
       if (!line || line === "LIBRE") return;
       let m = line.match(/^PASO\s+(.+)$/i);
-      if (m) { pasos.push(m[1]); return; }
+      if (m) { if (muestraPaso(m[1])) pasos.push(m[1]); return; }
       m = line.match(/^COLA\s+(\d+)\s+(.+)$/i);
       if (m) colas.push("conteo " + m[2].replace(/^ITEMS\s+/i, "") + " en cola posicion " + m[1]);
     });
