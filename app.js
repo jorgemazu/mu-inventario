@@ -89,22 +89,6 @@ function lecturasVisibles(lecturas) {
   if (vivas.length) return vivas;
   return s;
 }
-function rateVisible(vis) {
-  const s = vis.filter((x) => x.when && x.row.muc > 0);
-  if (s.length < 2) return { hora: 0, diario: 0 };
-  const last = s[s.length - 1];
-  const lim = last.when - 24 * 3600000;
-  let base = null;
-  for (const x of s) {
-    if (x.when >= lim && x.when < last.when) { base = x; break; }
-  }
-  if (!base) return { hora: 0, diario: 0 };
-  const dm = last.row.muc - base.row.muc;
-  const hours = (last.when - base.when) / 3600000;
-  if (dm <= 0 || hours < 0.02) return { hora: 0, diario: 0 };
-  const hora = dm / hours;
-  return { hora: Math.round(hora * 10) / 10, diario: Math.round(hora * 24) };
-}
 function totalItem(row, nombre) {
   const hit = ((row && row.items) || []).find((it) => it.nombre.toUpperCase() === nombre.toUpperCase());
   return hit ? hit.total : 0;
@@ -112,13 +96,12 @@ function totalItem(row, nombre) {
 function vistaDe(p) {
   const vis = lecturasVisibles(p.lecturas || []);
   const last = vis.length ? vis[vis.length - 1].row : null;
-  const rate = rateVisible(vis);
   const mucs = vis.filter((x) => x.when && x.row.muc > 0);
   return {
     nombre: p.nombre,
     fecha: last ? last.fecha : (p.fecha || ""),
-    hora: rate.hora,
-    diario: rate.diario,
+    hora: p.hora || 0,
+    diario: p.diario || 0,
     muc: mucs.length ? mucs[mucs.length - 1].row.muc : 0,
     oro: last ? last.oro : 0,
     diamantes: last ? last.diamantes : 0,
