@@ -9,6 +9,9 @@ if (!/^[0-9a-f]{64}$/i.test(pageKey) || !githubToken) {
   process.exit(1);
 }
 
+let apiKey = "";
+const SERVIDORES = ["servidor1", "servidor2"];
+
 function githubFile(path) {
   return new Promise((resolve, reject) => {
     const req = https.request(
@@ -66,7 +69,7 @@ function fechaDe(row) {
 }
 
 (async () => {
-  const apiKey = process.env.FARM_API || (await githubFile("programa/remote.token"));
+  apiKey = process.env.FARM_API || (await githubFile("programa/remote.token"));
   if (!apiKey) throw new Error("sin clave");
   const vivos = [];
   for (const nombre of SERVIDORES) {
