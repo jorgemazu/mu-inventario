@@ -94,20 +94,21 @@ function totalItem(row, nombre) {
   return hit ? hit.total : 0;
 }
 function vistaDe(p) {
-  const vis = lecturasVisibles(p.lecturas || []);
-  const last = vis.length ? vis[vis.length - 1].row : null;
-  const mucs = vis.filter((x) => x.when && x.row.muc > 0);
+  const s = lecturasOrdenadas(p.lecturas || []);
+  const con = s.filter((x) => tieneItems(x.row));
+  const fuente = con.length ? con[con.length - 1].row : null;
+  const items = fuente && (fuente.items || []).length ? fuente.items : (p.items || []);
   return {
     nombre: p.nombre,
-    fecha: last ? last.fecha : (p.fecha || ""),
+    fecha: p.fecha || "",
     hora: p.hora || 0,
     diario: p.diario || 0,
-    muc: mucs.length ? mucs[mucs.length - 1].row.muc : 0,
-    oro: last ? last.oro : 0,
-    diamantes: last ? last.diamantes : 0,
-    bound: last ? last.bound : 0,
-    items: (last && last.items) || [],
-    item: (nombre) => totalItem(last, nombre)
+    muc: p.muc || 0,
+    oro: p.oro || 0,
+    diamantes: p.diamantes || 0,
+    bound: p.bound || 0,
+    items,
+    item: (nombre) => totalItem({ items }, nombre)
   };
 }
 function vistasResultado() {
@@ -167,8 +168,10 @@ function procesar(libros) {
   state.personajes = [...por.entries()].map(([nombre, lecturas]) => {
     const serie = lecturas.filter((row) => whenOf(row.fecha) !== null && row.muc > 0).sort((a, b) => a.fecha.localeCompare(b.fecha));
     const last = serie.length ? serie[serie.length - 1] : lecturas.slice().sort((a, b) => a.fecha.localeCompare(b.fecha)).at(-1);
+    const conItems = lecturas.filter(tieneItems).sort((a, b) => String(a.fecha).localeCompare(String(b.fecha)));
+    const items = last && tieneItems(last) ? last.items : (conItems.length ? conItems[conItems.length - 1].items : []);
     const rate = mucRate(lecturas);
-    return { ...(last || { nombre, servidor: "", fecha: "", muc: 0, oro: 0, bound: 0, diamantes: 0, items: [] }), hora: rate.hora, diario: rate.diario, lecturas };
+    return { ...(last || { nombre, servidor: "", fecha: "", muc: 0, oro: 0, bound: 0, diamantes: 0, items: [] }), items, hora: rate.hora, diario: rate.diario, lecturas };
   }).sort((a, b) => b.muc - a.muc || a.nombre.localeCompare(b.nombre));
 }
 
