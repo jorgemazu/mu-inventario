@@ -2,81 +2,98 @@ const https = require("https");
 const crypto = require("crypto");
 const fs = require("fs");
 
-const token = process.env.FARM_TOKEN || "";
 const pageKey = process.env.PAGE_KEY || "";
-if (!token || !/^[0-9a-f]{64}$/i.test(pageKey)) {
+const apiKey = process.env.FARM_API || "";
+if (!/^[0-9a-f]{64}$/i.test(pageKey) || !apiKey) {
   console.error("faltan datos");
   process.exit(1);
 }
 
-function api(path) {
+const SERVIDORES = ["servidor1", "servidor2"];
+
+function pedir(nombre, path) {
   return new Promise((resolve, reject) => {
-    const req = https.request({
-      hostname: "api.github.com",
-      path: "/repos/jorgemazu/farmboss-inventario" + path,
-      headers: {
-        Authorization: "Bearer " + token,
-        Accept: "application/vnd.github+json",
-        "User-Agent": "mu-inventario",
-        "X-GitHub-Api-Version": "2022-11-28"
-      }
-    }, (res) => {
-      const chunks = [];
-      res.on("data", (c) => chunks.push(c));
-      res.on("end", () => {
-        const text = Buffer.concat(chunks).toString("utf8");
-        if (res.statusCode === 404) return resolve(null);
-        if (res.statusCode !== 200) return reject(new Error(path + " " + res.statusCode));
-        resolve(JSON.parse(text));
-      });
-    });
+    const req = https.request(
+      {
+        hostname: nombre + ".farmboss.stream",
+        path,
+        headers: { Authorization: "Bearer " + apiKey, "User-Agent": "mu-inventario" },
+      },
+      (res) => {
+        const chunks = [];
+        res.on("data", (c) => chunks.push(c));
+        res.on("end", () => {
+          const text = Buffer.concat(chunks).toString("utf8");
+          if (res.statusCode !== 200) return reject(new Error(nombre + " " + path + " " + res.statusCode));
+          resolve(text);
+        });
+      },
+    );
     req.on("error", reject);
+    req.setTimeout(20000, () => req.destroy(new Error(nombre + " timeout")));
     req.end();
   });
 }
 
-function textOf(file) {
-  if (!file) return "";
-  const content = file.content || "";
-  if (!content) return "";
-  return Buffer.from(content, "base64").toString("utf8").replace(/^\uFEFF/, "");
-}
-
-async function fileText(path) {
-  const file = await api("/contents/" + path);
-  if (!file) return "";
-  if (file.content) return textOf(file);
-  if (!file.sha) return "";
-  const blob = await api("/git/blobs/" + file.sha);
-  return textOf(blob);
+function fechaDe(row) {
+  return String((row && (row.Fecha || row.fecha)) || "");
 }
 
 (async () => {
-  const cuentas = JSON.parse(await fileText("cuentas.json"));
-  const limpias = { ...cuentas, cuentas: {} };
-  for (const [numero, cuenta] of Object.entries(cuentas.cuentas || {})) {
+  const vivos = [];
+  for (const nombre of SERVIDORES) {
+    try {
+      const maestro = JSON.parse(await pedir(nombre, "/v1/maestro"));
+      const estado = await pedir(nombre, "/v1/estado").catch(() => "");
+      const cola = await pedir(nombre, "/v1/cola").catch(() => "");
+      const respuesta = await pedir(nombre, "/v1/respuesta").catch(() => "");
+      let prueba = [];
+      try {
+        prueba = JSON.parse(await pedir(nombre, "/v1/prueba"));
+      } catch (err) {
+        prueba = [];
+      }
+      vivos.push({ nombre, maestro, estado, cola, respuesta, prueba });
+    } catch (err) {
+      console.error(nombre, err.message);
+    }
+  }
+  if (!vivos.length) throw new Error("ningun servidor");
+  vivos.sort((a, b) => String(b.maestro.cuando || "").localeCompare(String(a.maestro.cuando || "")));
+  const cuentasRaw = vivos[0].maestro.cuentas || { cuentas: {} };
+  const limpias = { ...cuentasRaw, cuentas: {} };
+  for (const [numero, cuenta] of Object.entries(cuentasRaw.cuentas || {})) {
     if (cuenta && cuenta.control) continue;
     limpias.cuentas[numero] = cuenta;
   }
-  const servers = await api("/contents/servidores");
+  const vistos = {};
+  for (const vivo of vivos) {
+    const mandos = vivo.maestro.mandos || {};
+    const lecturas = vivo.maestro.lecturas || {};
+    for (const [nombre, filas] of Object.entries(lecturas)) {
+      if (!Array.isArray(filas)) continue;
+      const srv = String(mandos[nombre] || vivo.nombre);
+      const prev = vistos[nombre];
+      if (prev && fechaDe(prev.filas[prev.filas.length - 1]) > fechaDe(filas[filas.length - 1])) continue;
+      vistos[nombre] = { srv, filas };
+    }
+  }
   const libros = {};
+  for (const [nombre, item] of Object.entries(vistos)) {
+    if (!libros[item.srv]) libros[item.srv] = {};
+    libros[item.srv][nombre] = item.filas;
+  }
   const estados = {};
   const colas = {};
   const pruebas = {};
-  for (const item of servers || []) {
-    if (!item || item.type !== "dir" || !item.name) continue;
-    const nombre = encodeURIComponent(item.name);
-    const libro = await fileText("servidores/" + nombre + "/libro.json");
-    if (libro) libros[item.name] = JSON.parse(libro);
-    estados[item.name] = await fileText("servidores/" + nombre + "/estado.txt");
-    colas[item.name] = await fileText("servidores/" + nombre + "/cola.txt");
-    const prueba = await fileText("servidores/" + nombre + "/prueba.json");
-    if (prueba) {
-      try { pruebas[item.name] = JSON.parse(prueba); } catch (err) { pruebas[item.name] = []; }
-    }
+  const respuestas = {};
+  for (const vivo of vivos) {
+    estados[vivo.nombre] = vivo.estado;
+    colas[vivo.nombre] = vivo.cola;
+    pruebas[vivo.nombre] = vivo.prueba;
+    respuestas[vivo.nombre] = vivo.respuesta;
   }
-  const buzon = /^[A-Za-z0-9_-]{16,80}$/.test(process.env.NTFY_TOPIC || "") ? process.env.NTFY_TOPIC : "";
-  const plain = Buffer.from(JSON.stringify({ cuentas: limpias, libros, estados, colas, pruebas, buzon }));
+  const plain = Buffer.from(JSON.stringify({ cuentas: limpias, libros, estados, colas, pruebas, respuestas, llave: apiKey }));
   const iv = crypto.randomBytes(12);
   const cipher = crypto.createCipheriv("aes-256-gcm", Buffer.from(pageKey, "hex"), iv);
   const ct = Buffer.concat([cipher.update(plain), cipher.final(), cipher.getAuthTag()]);

@@ -170,8 +170,90 @@
     return window.__publico;
   }
 
+  const SERVIDORES = ["servidor1", "servidor2"];
+
+  async function farmText(nombre, path, llave) {
+    const res = await fetch("https://" + nombre + ".farmboss.stream" + path, {
+      cache: "no-store",
+      headers: { Authorization: "Bearer " + llave }
+    });
+    if (!res.ok) throw new Error(String(res.status));
+    return res.text();
+  }
+
+  function fechaLectura(row) {
+    return String((row && (row.Fecha || row.fecha)) || "");
+  }
+
+  async function leerVivo(datos) {
+    const llave = String((datos && datos.llave) || "");
+    if (!llave) return datos;
+    const vivos = [];
+    for (let i = 0; i < SERVIDORES.length; i++) {
+      const nombre = SERVIDORES[i];
+      try {
+        const maestro = JSON.parse(await farmText(nombre, "/v1/maestro", llave));
+        let estado = "";
+        let cola = "";
+        let respuesta = "";
+        let prueba = [];
+        try { estado = await farmText(nombre, "/v1/estado", llave); } catch (err) {}
+        try { cola = await farmText(nombre, "/v1/cola", llave); } catch (err) {}
+        try { respuesta = await farmText(nombre, "/v1/respuesta", llave); } catch (err) {}
+        try { prueba = JSON.parse(await farmText(nombre, "/v1/prueba", llave)); } catch (err) {}
+        vivos.push({ nombre: nombre, maestro: maestro, estado: estado, cola: cola, respuesta: respuesta, prueba: prueba });
+      } catch (err) {}
+    }
+    if (!vivos.length) return datos;
+    const vistos = {};
+    vivos.forEach(function (vivo) {
+      const mandos = (vivo.maestro && vivo.maestro.mandos) || {};
+      const lecturas = (vivo.maestro && vivo.maestro.lecturas) || {};
+      Object.keys(lecturas).forEach(function (nombre) {
+        const filas = lecturas[nombre];
+        if (!Array.isArray(filas)) return;
+        const srv = String(mandos[nombre] || vivo.nombre);
+        const prev = vistos[nombre];
+        const ultima = filas.length ? fechaLectura(filas[filas.length - 1]) : "";
+        const anterior = prev && prev.filas.length ? fechaLectura(prev.filas[prev.filas.length - 1]) : "";
+        if (prev && anterior > ultima) return;
+        vistos[nombre] = { srv: srv, filas: filas };
+      });
+    });
+    const libros = {};
+    Object.keys(vistos).forEach(function (nombre) {
+      const item = vistos[nombre];
+      if (!libros[item.srv]) libros[item.srv] = {};
+      libros[item.srv][nombre] = item.filas;
+    });
+    const estados = {};
+    const colas = {};
+    const pruebas = {};
+    const respuestas = {};
+    vivos.forEach(function (vivo) {
+      estados[vivo.nombre] = vivo.estado;
+      colas[vivo.nombre] = vivo.cola;
+      pruebas[vivo.nombre] = vivo.prueba;
+      respuestas[vivo.nombre] = vivo.respuesta;
+    });
+    return Object.assign({}, datos, { libros: libros, estados: estados, colas: colas, pruebas: pruebas, respuestas: respuestas });
+  }
+
   async function enviarOrdenPublica(srv, quien, aviso, verbo, marca) {
     const datos = await leerPublico();
+    const llave = String((datos && datos.llave) || "");
+    const host = String(srv || "").trim().toLowerCase();
+    if (llave && /^[a-z0-9_-]{1,40}$/.test(host)) {
+      const linea = verbo + " " + quien + " @PAGINA" + marca + "\n";
+      const res = await fetch("https://" + host + ".farmboss.stream/v1/orden", {
+        method: "POST",
+        headers: { Authorization: "Bearer " + llave, "Content-Type": "text/plain; charset=utf-8" },
+        body: linea
+      });
+      if (!res.ok) throw new Error("No se pudo enviar la orden");
+      window.__apkEstado(aviso);
+      return;
+    }
     const topic = String((datos && datos.buzon) || "").trim();
     if (!/^[A-Za-z0-9_-]{16,80}$/.test(topic)) throw new Error("Todavía no se puede enviar desde la página");
     if (!/^[A-Za-z0-9_-]{1,40}$/.test(srv)) throw new Error("Servidor no válido");
@@ -208,7 +290,7 @@
     cargar: function () {
       (async function () {
         if (!token()) {
-          const datos = await leerPublico();
+          const datos = await leerVivo(await leerPublico());
           window.__datos({ cuentas: datos.cuentas, libros: datos.libros, estados: datos.estados || {}, pruebas: datos.pruebas || {} });
           return;
         }
@@ -262,7 +344,7 @@
     },
     estados: function () {
       if (!token()) {
-        leerPublico().then(function (datos) { window.__estados(datos.estados || {}); }).catch(function () {});
+        leerPublico().then(leerVivo).then(function (datos) { window.__estados(datos.estados || {}); }).catch(function () {});
         return;
       }
       (async function () {
@@ -278,8 +360,9 @@
     },
     cola: function () {
       if (!token()) {
-        leerPublico(true).then(function (datos) {
+        leerPublico(true).then(leerVivo).then(function (datos) {
           window.__cola(datos.colas || {});
+          if (datos.respuestas && window.__respuesta) window.__respuesta(datos.respuestas);
           return leerRespuestasPublicas(datos && datos.buzon);
         }).catch(function () {});
         return;
@@ -313,6 +396,6 @@
 
   window.MU_ORIGEN = "PAGINA";
   const script = document.createElement("script");
-  script.src = new URL("app.js?v=121", document.currentScript.src).href;
+  script.src = new URL("app.js?v=122", document.currentScript.src).href;
   document.body.appendChild(script);
 })();
