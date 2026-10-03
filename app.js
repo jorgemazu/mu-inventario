@@ -69,6 +69,76 @@ function mucRate(lecturas) {
   }
   return { hora: 0, diario: 0 };
 }
+const CATALOGO_ITEMS = ["BLESS", "SOUL", "LIFE", "CHAOS", "CREATION", "SD SEED", "COMBO HEART", "CONDOR", "GARUDA", "WING ENHANCE STONE", "HEAVENLY STEEL", "ANGEL SIGNET", "ROSSY SIGNET", "ANILLOS", "AROS", "COLLARES"].concat(
+  ...["Fire", "Ice", "Wind", "Water"].map((elem) => Array.from({ length: 12 }, (_, i) => "Fluorite " + elem + " " + (i + 1)))
+);
+function tieneItems(row) {
+  return (row.items || []).some((it) => (it.total || it.bolsa || it.baul) > 0);
+}
+function lecturasOrdenadas(lecturas) {
+  return (lecturas || [])
+    .filter((row) => row && row.fecha && !/^LECTURA/i.test(row.fecha))
+    .map((row) => ({ row, when: whenOf(row.fecha) }))
+    .sort((a, b) => (a.when || 0) - (b.when || 0) || String(a.row.fecha).localeCompare(String(b.row.fecha)));
+}
+function lecturasVisibles(lecturas) {
+  const s = lecturasOrdenadas(lecturas);
+  const vivas = s.filter((x) => x.row.muc > 0 || x.row.oro > 0 || tieneItems(x.row));
+  const con = vivas.filter((x) => tieneItems(x.row));
+  if (con.length) return con;
+  if (vivas.length) return vivas;
+  return s;
+}
+function rateVisible(vis) {
+  const s = vis.filter((x) => x.when && x.row.muc > 0);
+  if (s.length < 2) return { hora: 0, diario: 0 };
+  const last = s[s.length - 1];
+  const lim = last.when - 24 * 3600000;
+  let base = null;
+  for (const x of s) {
+    if (x.when >= lim && x.when < last.when) { base = x; break; }
+  }
+  if (!base) return { hora: 0, diario: 0 };
+  const dm = last.row.muc - base.row.muc;
+  const hours = (last.when - base.when) / 3600000;
+  if (dm <= 0 || hours < 0.02) return { hora: 0, diario: 0 };
+  const hora = dm / hours;
+  return { hora: Math.round(hora * 10) / 10, diario: Math.round(hora * 24) };
+}
+function totalItem(row, nombre) {
+  const hit = ((row && row.items) || []).find((it) => it.nombre.toUpperCase() === nombre.toUpperCase());
+  return hit ? hit.total : 0;
+}
+function vistaDe(p) {
+  const vis = lecturasVisibles(p.lecturas || []);
+  const last = vis.length ? vis[vis.length - 1].row : null;
+  const rate = rateVisible(vis);
+  const mucs = vis.filter((x) => x.when && x.row.muc > 0);
+  return {
+    nombre: p.nombre,
+    fecha: last ? last.fecha : (p.fecha || ""),
+    hora: rate.hora,
+    diario: rate.diario,
+    muc: mucs.length ? mucs[mucs.length - 1].row.muc : 0,
+    oro: last ? last.oro : 0,
+    diamantes: last ? last.diamantes : 0,
+    bound: last ? last.bound : 0,
+    items: (last && last.items) || [],
+    item: (nombre) => totalItem(last, nombre)
+  };
+}
+function vistasResultado() {
+  return state.personajes.map(vistaDe);
+}
+function nombresItemResultado(vistas) {
+  const rows = CATALOGO_ITEMS.filter((nombre) => vistas.some((v) => v.item(nombre)));
+  vistas.forEach((v) => (v.items || []).forEach((it) => {
+    if (!it.total || MONEDAS.has(it.nombre.toUpperCase())) return;
+    if (rows.some((n) => n.toUpperCase() === it.nombre.toUpperCase())) return;
+    rows.push(it.nombre);
+  }));
+  return rows;
+}
 function filaDe(row) {
   const lista = Array.isArray(row && row.instancias) ? row.instancias.map((x) => String(x).trim()).filter(Boolean) : [];
   return { nombre: String((row && row.nombre) || "").trim(), actualizar: !!(row && row.actualizar === true), control: !!(row && row.control === true), todas: lista.some((x) => x === "*"), instancias: lista.filter((x) => x !== "*") };
@@ -189,7 +259,7 @@ function sheetName(name, used) {
   return n;
 }
 function listaXml() {
-  const todos = state.personajes;
+  const todos = vistasResultado();
   const entra = (nombre) => !state.sumar || state.sumar[nombre] !== false;
   const filaNum = (label, dec, get) => {
     const vals = todos.map(get);
@@ -201,15 +271,7 @@ function listaXml() {
     };
     return `<Row><Cell ss:StyleID="item"><Data ss:Type="String">${xmlEsc(label)}</Data></Cell>${vals.map(celda).join("")}<Cell ss:StyleID="${dec ? "totd" : "tot"}"><Data ss:Type="Number">${dec ? sum.toFixed(1) : String(Math.round(sum))}</Data></Cell></Row>`;
   };
-  const items = [];
-  const vistos = new Set();
-  todos.forEach((p) => (p.items || []).forEach((it) => {
-    const k = it.nombre.toUpperCase();
-    if (vistos.has(k) || !it.total) return;
-    vistos.add(k);
-    items.push(it.nombre);
-  }));
-  items.sort((a, b) => a.localeCompare(b));
+  const items = nombresItemResultado(todos);
   const rows = ['<?xml version="1.0" encoding="UTF-8"?>', '<?mso-application progid="Excel.Sheet"?>', '<Workbook xmlns="urn:schemas-microsoft-com:office:spreadsheet" xmlns:ss="urn:schemas-microsoft-com:office:spreadsheet">', "<Styles>",
     '<Style ss:ID="hdr"><Font ss:Bold="1" ss:Color="#FFFFFF"/><Interior ss:Color="#1F4E79" ss:Pattern="Solid"/><Alignment ss:Horizontal="Center" ss:WrapText="1"/></Style>',
     '<Style ss:ID="item"><Font ss:Bold="1"/></Style>',
@@ -226,12 +288,7 @@ function listaXml() {
     filaNum("oro", false, (p) => p.oro),
     filaNum("diamantes", false, (p) => p.diamantes),
     filaNum("bound muc", false, (p) => p.bound)];
-  items.forEach((nombre) => {
-    rows.push(filaNum(nombre, false, (p) => {
-      const hit = (p.items || []).find((it) => it.nombre.toUpperCase() === nombre.toUpperCase());
-      return hit ? hit.total : 0;
-    }));
-  });
+  items.forEach((nombre) => rows.push(filaNum(nombre, false, (p) => p.item(nombre))));
   rows.push("</Table></Worksheet></Workbook>");
   return rows.join("\n");
 }
@@ -349,31 +406,18 @@ function render() {
   }
 
   if (state.pantalla === "resultados") {
-    const cols = state.personajes;
+    const cols = vistasResultado();
     const entra = (p) => state.sumar[p.nombre] !== false;
     const filas = [
-      ["muc hora", (p) => fmtHora(p.hora), (p) => p.hora, true],
-      ["muc diario", (p) => fmtDiario(p.diario), (p) => p.diario, false],
-      ["muc", (p) => fmt(p.muc), (p) => p.muc, false],
-      ["oro", (p) => fmt(p.oro), (p) => p.oro, false],
-      ["diamantes", (p) => fmt(p.diamantes), (p) => p.diamantes, false],
-      ["bound muc", (p) => fmt(p.bound), (p) => p.bound, false]
+      ["muc hora", (p) => fmtHora(p.hora), (p) => p.hora],
+      ["muc diario", (p) => fmtDiario(p.diario), (p) => p.diario],
+      ["muc", (p) => fmt(p.muc), (p) => p.muc],
+      ["oro", (p) => fmt(p.oro), (p) => p.oro],
+      ["diamantes", (p) => fmt(p.diamantes), (p) => p.diamantes],
+      ["bound muc", (p) => fmt(p.bound), (p) => p.bound]
     ];
-    const vistos = new Set();
-    const nombresItem = [];
-    cols.forEach((p) => (p.items || []).forEach((it) => {
-      const k = it.nombre.toUpperCase();
-      if (vistos.has(k) || !it.total) return;
-      vistos.add(k);
-      nombresItem.push(it.nombre);
-    }));
-    nombresItem.sort((a, b) => a.localeCompare(b));
-    nombresItem.forEach((nombre) => {
-      const leer = (p) => {
-        const hit = (p.items || []).find((it) => it.nombre.toUpperCase() === nombre.toUpperCase());
-        return hit ? hit.total : 0;
-      };
-      filas.push([nombre, (p) => fmt(leer(p)), leer, false]);
+    nombresItemResultado(cols).forEach((nombre) => {
+      filas.push([nombre, (p) => fmt(p.item(nombre)), (p) => p.item(nombre)]);
     });
     const head = `<tr><th></th>${cols.map((p) => {
       const on = entra(p);
@@ -389,7 +433,7 @@ function render() {
       const stxt = lab === "muc hora" ? fmtHora(sum) : (lab === "muc diario" ? fmtDiario(sum) : fmt(Math.round(sum)));
       return `<tr><td>${esc(lab)}</td>${tds}<td class="n cream">${stxt}</td></tr>`;
     }).join("");
-    app.innerHTML = `<header>${bannerApk()}<button class="back" id="volver">‹ Volver</button><h1>Resultados</h1><p class="sub">El checkbox saca o pone al personaje en la suma.</p></header>
+    app.innerHTML = `<header>${bannerApk()}<button class="back" id="volver">‹ Volver</button><h1>Resultados</h1><p class="sub">Mismo criterio que FarmBoss: el último conteo que trajo ítems. El checkbox saca o pone al personaje en la suma.</p></header>
       <section class="pad"><div class="tabla-wrap"><table class="tabla-res">${head}${body}</table></div></section>`;
     app.querySelector("#volver").onclick = () => { state.pantalla = "lista"; render(); };
     app.querySelectorAll("[data-sumar]").forEach((box) => box.onchange = () => {
