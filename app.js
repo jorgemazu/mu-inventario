@@ -130,7 +130,8 @@ function filaDe(row) {
 }
 function permite(fila, nombre) {
   if (!fila) return false;
-  if (fila.todas || window.MU_MASTER) return true;
+  if (fila.todas) return true;
+  if (!fila.instancias.length) return !!window.MU_MASTER;
   return fila.instancias.some((x) => x.toLowerCase() === nombre.toLowerCase());
 }
 function acceso() {
@@ -437,39 +438,22 @@ function render() {
     const hit = `<button class="hit" type="button" data-n="${esc(p.nombre)}"><div class="name"><strong>${esc(p.nombre)}</strong><span>${esc(p.servidor)}</span></div>${mucHtml(p, false)}<p class="fecha">${esc(p.fecha)}</p></button>`;
     const on = !!state.nobot[p.nombre];
     const nobot = `<label class="nobot"><input type="checkbox" data-nobot="${esc(p.nombre)}" ${on ? "checked" : ""}/>NO BOT items</label>`;
-    const foto = `<button class="line mini" type="button" data-foto="${esc(p.nombre)}" data-srv="${esc(p.servidor)}">Contar</button>`;
+    const foto = window.MU_MASTER ? "" : `<button class="line mini" type="button" data-foto="${esc(p.nombre)}" data-srv="${esc(p.servidor)}">Contar</button>`;
     const items = `<button class="line mini" type="button" data-items="${esc(p.nombre)}" data-srv="${esc(p.servidor)}">Contar items y muc</button>`;
     return `<div class="card">${hit}${nobot}<div class="acts">${foto}${items}</div></div>`;
   }).join("");
   let servidoresHtml = "";
   if (window.MU_MASTER) {
-    const tabs = ["prueba"].concat(servidores);
-    if (!tabs.includes(state.tab)) state.tab = servidores[0] || "prueba";
-    const tabBtns = `<button class="line ${state.tab === "prueba" ? "on" : ""}" type="button" data-tab="prueba">Prueba</button>` +
-      servidores.map((s) => `<button class="line ${s === state.tab ? "on" : ""}" type="button" data-tab="${esc(s)}">${esc(etiquetaServidor(s))}</button>`).join("");
+    if (state.tab === "prueba") state.tab = "";
+    if (servidores.length && !servidores.includes(state.tab)) state.tab = servidores[0];
+    const tabBtns = servidores.map((s) => `<button class="line ${s === state.tab ? "on" : ""}" type="button" data-tab="${esc(s)}">${esc(etiquetaServidor(s))}</button>`).join("");
     let cuerpo = "";
-    if (state.tab === "prueba") {
-      const rows = filasPrueba().map((r) => {
-        const titulo = r.tipo === "cuenta" ? "Cuenta de prueba" : "Fotos de prueba";
-        return `<div class="card"><div class="name"><strong>${esc(r.cuenta || "sin cuenta")}</strong><span class="${r.ok ? "ok" : "bad"}">${r.ok ? "ok" : "fallo"}</span></div><p class="fecha">${esc(titulo)} · ${esc(r.servidor)} · ${esc(r.cuando)}</p><p class="sub">${esc(r.nota)}</p></div>`;
-      }).join("");
-      cuerpo = `<div class="list">${rows || '<p class="sub">Todavía no hay pruebas.</p>'}</div><p class="sub">No entra al inventario. Solo dice si las fotos y el conteo de prueba salieron bien.</p>`;
-    } else if (!servidores.length) {
+    if (!servidores.length) {
       cuerpo = `<p class="sub">Ningún servidor acoplado. En FarmBoss aprieta Acoplar.</p>`;
     } else {
-      const delTab = state.personajes.filter((p) => p.servidor === state.tab);
       const motor = motorInfo(state.tab);
-      const checks = delTab.map((p) => {
-        const on = state.marcados.includes(claveDe(p.servidor, p.nombre));
-        return `<button class="pick ${on ? "on" : ""}" type="button" data-check="${esc(p.nombre)}" data-srv="${esc(p.servidor)}"><span class="box ${on ? "on" : ""}"></span>${esc(p.nombre)}</button>`;
-      }).join("");
-      const n = state.marcados.length;
       cuerpo = `<p class="motor ${motor.cls}" data-motor="1">${motor.text}</p>
-        <button class="line" id="actsrv" type="button">Actualizar servidor</button>
-        <div class="picks">${checks || '<p class="sub">Este servidor no tiene personajes en el inventario.</p>'}</div>
-        <button class="gold" id="sacar" type="button">${n ? "Contar (" + n + ")" : "Contar"}</button>
-        <p class="sub">Los marcados de todas las pestañas. Primero las fotos, después el conteo.</p>
-        ${window.ES_PAGINA ? '<p class="sub">Contar puede demorar hasta 20 segundos en accionar.</p>' : ""}`;
+        <button class="line" id="actsrv" type="button">Actualizar servidor</button>`;
     }
     servidoresHtml = `<section class="pad"><h2>SERVIDORES</h2><div class="tabs">${tabBtns}</div>${cuerpo}</section>`;
   }

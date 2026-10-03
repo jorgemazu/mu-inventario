@@ -396,6 +396,6 @@
 
   window.MU_ORIGEN = "PAGINA";
   const script = document.createElement("script");
-  script.src = new URL("app.js?v=124", document.currentScript.src).href;
+  script.src = new URL("app.js?v=125", document.currentScript.src).href;
   document.body.appendChild(script);
 })();
