@@ -57,17 +57,18 @@ function whenOf(fecha) {
 function mucRate(lecturas) {
   const serie = lecturas.map((row) => ({ row, when: whenOf(row.fecha) })).filter((row) => row.when !== null && row.row.muc > 0).sort((a, b) => a.when - b.when || a.row.fecha.localeCompare(b.row.fecha));
   if (serie.length < 2) return { hora: 0, diario: 0 };
-  let hasta = serie.length - 1;
-  if (serie[hasta].row.muc <= serie[hasta - 1].row.muc) hasta -= 1;
-  for (let i = hasta; i >= 1; i--) {
-    const dm = serie[i].row.muc - serie[i - 1].row.muc;
-    if (dm <= 0) continue;
-    const hours = (serie[i].when - serie[i - 1].when) / 3600000;
-    if (hours < 0.02) continue;
-    const hora = dm / hours;
-    return { hora: Math.round(hora * 10) / 10, diario: Math.round(hora * 24) };
+  const last = serie[serie.length - 1];
+  const lim = last.when - 24 * 3600000;
+  let base = null;
+  for (const row of serie) {
+    if (row.when >= lim && row.when < last.when) { base = row; break; }
   }
-  return { hora: 0, diario: 0 };
+  if (!base) return { hora: 0, diario: 0 };
+  const dm = last.row.muc - base.row.muc;
+  const hours = (last.when - base.when) / 3600000;
+  if (dm <= 0 || hours < 0.02) return { hora: 0, diario: 0 };
+  const hora = dm / hours;
+  return { hora: Math.round(hora * 10) / 10, diario: Math.round(hora * 24) };
 }
 const CATALOGO_ITEMS = ["BLESS", "SOUL", "LIFE", "CHAOS", "CREATION", "SD SEED", "COMBO HEART", "CONDOR", "GARUDA", "WING ENHANCE STONE", "HEAVENLY STEEL", "ANGEL SIGNET", "ROSSY SIGNET", "ANILLOS", "AROS", "COLLARES"].concat(
   ...["Fire", "Ice", "Wind", "Water"].map((elem) => Array.from({ length: 12 }, (_, i) => "Fluorite " + elem + " " + (i + 1)))
