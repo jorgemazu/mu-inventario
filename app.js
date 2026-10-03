@@ -1,6 +1,8 @@
 const MONEDAS = new Set(["ORO", "MUC", "BOUND MUC", "BOUND", "DIAMANTES"]);
 const KEY = window.MU_MASTER ? "mu-master-cuenta" : "mu-cuenta";
-const state = { cuenta: localStorage.getItem(KEY) || "", archivo: null, personajes: [], aviso: "", pantalla: "lista", detalle: null, edit: null, ocupado: false, apkNueva: false, instalando: false, tab: "", marcados: [], estados: {}, servidores: [], pruebas: {} };
+const state = { cuenta: localStorage.getItem(KEY) || "", archivo: null, personajes: [], aviso: "", pantalla: "lista", detalle: null, edit: null, ocupado: false, apkNueva: false, instalando: false, tab: "", marcados: [], estados: {}, servidores: [], pruebas: {}, lineas: [], nobot: {}, sumar: {}, log5: [] };
+try { state.nobot = JSON.parse(localStorage.getItem("mu-nobot") || "{}") || {}; } catch (err) { state.nobot = {}; }
+try { state.sumar = JSON.parse(localStorage.getItem("mu-sumar") || "{}") || {}; } catch (err) { state.sumar = {}; }
 
 function esc(s) { return String(s ?? "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;"); }
 function fmt(n) { return new Intl.NumberFormat("es-CL", { maximumFractionDigits: 0 }).format(n || 0); }
@@ -187,46 +189,50 @@ function sheetName(name, used) {
   return n;
 }
 function listaXml() {
-  const filas = state.personajes.filter((p) => p.muc || p.hora || p.diario);
-  const tot = totales();
+  const todos = state.personajes;
+  const entra = (nombre) => !state.sumar || state.sumar[nombre] !== false;
+  const filaNum = (label, dec, get) => {
+    const vals = todos.map(get);
+    let sum = 0;
+    todos.forEach((p, i) => { if (entra(p.nombre)) sum += Number(vals[i]) || 0; });
+    const celda = (n) => {
+      const v = dec ? Number(n || 0).toFixed(1) : String(Math.round(Number(n) || 0));
+      return `<Cell ss:StyleID="${dec ? "dec" : "num"}"><Data ss:Type="Number">${v}</Data></Cell>`;
+    };
+    return `<Row><Cell ss:StyleID="item"><Data ss:Type="String">${xmlEsc(label)}</Data></Cell>${vals.map(celda).join("")}<Cell ss:StyleID="${dec ? "totd" : "tot"}"><Data ss:Type="Number">${dec ? sum.toFixed(1) : String(Math.round(sum))}</Data></Cell></Row>`;
+  };
+  const items = [];
+  const vistos = new Set();
+  todos.forEach((p) => (p.items || []).forEach((it) => {
+    const k = it.nombre.toUpperCase();
+    if (vistos.has(k) || !it.total) return;
+    vistos.add(k);
+    items.push(it.nombre);
+  }));
+  items.sort((a, b) => a.localeCompare(b));
   const rows = ['<?xml version="1.0" encoding="UTF-8"?>', '<?mso-application progid="Excel.Sheet"?>', '<Workbook xmlns="urn:schemas-microsoft-com:office:spreadsheet" xmlns:ss="urn:schemas-microsoft-com:office:spreadsheet">', "<Styles>",
-    '<Style ss:ID="hdr"><Font ss:Bold="1" ss:Color="#FFFFFF"/><Interior ss:Color="#1F4E79" ss:Pattern="Solid"/></Style>',
-    '<Style ss:ID="item"><Font ss:Bold="1"/><Interior ss:Color="#D6DCE4" ss:Pattern="Solid"/></Style>',
-    '<Style ss:ID="tot"><Font ss:Bold="1"/><Interior ss:Color="#FFF2CC" ss:Pattern="Solid"/><NumberFormat ss:Format="#,##0"/></Style>',
-    '<Style ss:ID="num"><NumberFormat ss:Format="#,##0"/></Style>',
-    '<Style ss:ID="kph"><Font ss:Bold="1"/><Interior ss:Color="#FCE4D6" ss:Pattern="Solid"/><NumberFormat ss:Format="#,##0.0"/></Style>',
-    "</Styles>", '<Worksheet ss:Name="RESUMEN"><Table>', '<Column ss:Width="160"/><Column ss:Width="120"/><Column ss:Width="120"/><Column ss:Width="120"/>',
-    `<Row><Cell ss:StyleID="hdr"><Data ss:Type="String">TOTAL</Data></Cell>${numCell(tot.muc, "tot", 2)}<Cell ss:Index="3" ss:StyleID="kph"><Data ss:Type="Number">${tot.hora.toFixed(1)}</Data></Cell>${numCell(tot.diario, "tot", 4)}</Row>`,
-    '<Row><Cell ss:StyleID="hdr"><Data ss:Type="String">Personaje</Data></Cell><Cell ss:StyleID="hdr"><Data ss:Type="String">MUC actual</Data></Cell><Cell ss:StyleID="hdr"><Data ss:Type="String">MUC/hora</Data></Cell><Cell ss:StyleID="hdr"><Data ss:Type="String">MUC diario</Data></Cell></Row>'];
-  for (const row of filas) rows.push(`<Row><Cell ss:StyleID="item"><Data ss:Type="String">${xmlEsc(row.nombre)}</Data></Cell>${numCell(row.muc, "tot", 2)}<Cell ss:Index="3" ss:StyleID="kph"><Data ss:Type="Number">${row.hora.toFixed(1)}</Data></Cell>${numCell(row.diario, "tot", 4)}</Row>`);
-  rows.push("</Table></Worksheet>");
-  const used = new Set(["RESUMEN"]);
-  const monedas = ["ORO", "MUC", "BOUND MUC", "DIAMANTES"];
-  for (const row of filas) {
-    const lecturas = [...(row.lecturas || [])].sort((a, b) => a.fecha.localeCompare(b.fecha));
-    const nombres = new Set();
-    lecturas.forEach((l) => l.items.forEach((it) => nombres.add(it.nombre)));
-    const orden = [...monedas.filter((nombre) => lecturas.some((l) => l.items.some((it) => it.nombre.toUpperCase() === nombre) || (nombre === "MUC" && l.muc) || (nombre === "ORO" && l.oro) || (nombre === "DIAMANTES" && l.diamantes) || (nombre === "BOUND MUC" && l.bound))), ...[...nombres].filter((n) => !monedas.includes(n.toUpperCase())).sort((a, b) => a.localeCompare(b))];
-    if (!orden.length) continue;
-    rows.push(`<Worksheet ss:Name="${xmlEsc(sheetName(row.nombre, used))}"><Table>`);
-    rows.push('<Column ss:Width="150"/>');
-    rows.push(`<Row><Cell ss:StyleID="hdr"><Data ss:Type="String">MUC actual</Data></Cell>${numCell(row.muc, "tot", 2)}<Cell ss:Index="3" ss:StyleID="hdr"><Data ss:Type="String">MUC/hora</Data></Cell><Cell ss:StyleID="kph"><Data ss:Type="Number">${row.hora.toFixed(1)}</Data></Cell><Cell ss:StyleID="hdr"><Data ss:Type="String">MUC diario</Data></Cell>${numCell(row.diario, "tot", 6)}</Row>`);
-    rows.push(`<Row><Cell ss:StyleID="item"><Data ss:Type="String">ITEM</Data></Cell>${lecturas.map((l) => `<Cell ss:StyleID="hdr" ss:MergeAcross="2"><Data ss:Type="String">${xmlEsc(l.fecha)}</Data></Cell>`).join("")}</Row>`);
-    rows.push(`<Row><Cell ss:StyleID="hdr"><Data ss:Type="String"></Data></Cell>${lecturas.map(() => '<Cell ss:StyleID="hdr"><Data ss:Type="String">BOLSA</Data></Cell><Cell ss:StyleID="hdr"><Data ss:Type="String">BAUL</Data></Cell><Cell ss:StyleID="hdr"><Data ss:Type="String">TOTAL</Data></Cell>').join("")}</Row>`);
-    for (const item of orden) {
-      const celdas = lecturas.map((l) => {
-        const hit = l.items.find((it) => it.nombre.toUpperCase() === item.toUpperCase());
-        const moneda = item === "MUC" ? l.muc : item === "ORO" ? l.oro : item === "DIAMANTES" ? l.diamantes : item === "BOUND MUC" ? l.bound : 0;
-        const bolsa = hit ? hit.bolsa : moneda || 0;
-        const baul = hit ? hit.baul : 0;
-        return { bolsa, baul, total: hit ? hit.total : bolsa + baul };
-      });
-      if (celdas.every((c) => !c.bolsa && !c.baul && !c.total)) continue;
-      rows.push(`<Row><Cell ss:StyleID="item"><Data ss:Type="String">${xmlEsc(item)}</Data></Cell>${celdas.map((c) => `<Cell ss:StyleID="num"><Data ss:Type="Number">${c.bolsa}</Data></Cell><Cell ss:StyleID="num"><Data ss:Type="Number">${c.baul}</Data></Cell><Cell ss:StyleID="tot"><Data ss:Type="Number">${c.total}</Data></Cell>`).join("")}</Row>`);
-    }
-    rows.push("</Table></Worksheet>");
-  }
-  rows.push("</Workbook>");
+    '<Style ss:ID="hdr"><Font ss:Bold="1" ss:Color="#FFFFFF"/><Interior ss:Color="#1F4E79" ss:Pattern="Solid"/><Alignment ss:Horizontal="Center" ss:WrapText="1"/></Style>',
+    '<Style ss:ID="item"><Font ss:Bold="1"/></Style>',
+    '<Style ss:ID="num"><Alignment ss:Horizontal="Right"/><NumberFormat ss:Format="#,##0"/></Style>',
+    '<Style ss:ID="dec"><Alignment ss:Horizontal="Right"/><NumberFormat ss:Format="#,##0.0"/></Style>',
+    '<Style ss:ID="tot"><Font ss:Bold="1"/><Interior ss:Color="#FFF2CC" ss:Pattern="Solid"/><Alignment ss:Horizontal="Right"/><NumberFormat ss:Format="#,##0"/></Style>',
+    '<Style ss:ID="totd"><Font ss:Bold="1"/><Interior ss:Color="#FFF2CC" ss:Pattern="Solid"/><Alignment ss:Horizontal="Right"/><NumberFormat ss:Format="#,##0.0"/></Style>',
+    "</Styles>", '<Worksheet ss:Name="Resultados"><Table>', '<Column ss:Width="140"/>',
+    todos.map(() => '<Column ss:Width="120"/>').join(""), '<Column ss:Width="120"/>',
+    `<Row ss:Height="32"><Cell ss:StyleID="hdr"><Data ss:Type="String"></Data></Cell>${todos.map((p) => `<Cell ss:StyleID="hdr"><Data ss:Type="String">${xmlEsc(p.nombre + (p.fecha ? " " + p.fecha : ""))}</Data></Cell>`).join("")}<Cell ss:StyleID="hdr"><Data ss:Type="String">suma</Data></Cell></Row>`,
+    filaNum("muc hora", true, (p) => p.hora),
+    filaNum("muc diario", false, (p) => p.diario),
+    filaNum("muc", false, (p) => p.muc),
+    filaNum("oro", false, (p) => p.oro),
+    filaNum("diamantes", false, (p) => p.diamantes),
+    filaNum("bound muc", false, (p) => p.bound)];
+  items.forEach((nombre) => {
+    rows.push(filaNum(nombre, false, (p) => {
+      const hit = (p.items || []).find((it) => it.nombre.toUpperCase() === nombre.toUpperCase());
+      return hit ? hit.total : 0;
+    }));
+  });
+  rows.push("</Table></Worksheet></Workbook>");
   return rows.join("\n");
 }
 
@@ -237,12 +243,20 @@ function bannerApk() {
 
 function titulo() { return window.MU_MASTER ? "MU MASTER INVENTARIO" : "MU INVENTARIO"; }
 
+function logHtml() {
+  const lines = (state.log5 || []).slice(-5);
+  while (lines.length < 5) lines.push("");
+  return `<div class="log5" id="log5">${lines.map((l) => `<p>${esc(l)}</p>`).join("")}</div>`;
+}
+
 function botonesComunes() {
   const acc = acceso();
   return `${bannerApk()}
     ${versionNueva() ? '<p class="aviso">Hay una versión nueva.</p>' : ""}
+    ${logHtml()}
     ${mucHtml(totales(), true)}
-    <button class="line" id="listaBtn">Hacer lista maestra</button>
+    <button class="line" id="resBtn">Resultados</button>
+    <button class="line" id="listaBtn">Generar excel</button>
     <button class="gold" id="upd">${state.ocupado ? "Leyendo..." : "Actualizar"}</button>
     <button class="line" id="cambiar">Cambiar cuenta</button>
     ${state.aviso ? `<p class="warn">${esc(state.aviso)}</p>` : ""}
@@ -334,12 +348,66 @@ function render() {
     return;
   }
 
+  if (state.pantalla === "resultados") {
+    const cols = state.personajes;
+    const entra = (p) => state.sumar[p.nombre] !== false;
+    const filas = [
+      ["muc hora", (p) => fmtHora(p.hora), (p) => p.hora, true],
+      ["muc diario", (p) => fmtDiario(p.diario), (p) => p.diario, false],
+      ["muc", (p) => fmt(p.muc), (p) => p.muc, false],
+      ["oro", (p) => fmt(p.oro), (p) => p.oro, false],
+      ["diamantes", (p) => fmt(p.diamantes), (p) => p.diamantes, false],
+      ["bound muc", (p) => fmt(p.bound), (p) => p.bound, false]
+    ];
+    const vistos = new Set();
+    const nombresItem = [];
+    cols.forEach((p) => (p.items || []).forEach((it) => {
+      const k = it.nombre.toUpperCase();
+      if (vistos.has(k) || !it.total) return;
+      vistos.add(k);
+      nombresItem.push(it.nombre);
+    }));
+    nombresItem.sort((a, b) => a.localeCompare(b));
+    nombresItem.forEach((nombre) => {
+      const leer = (p) => {
+        const hit = (p.items || []).find((it) => it.nombre.toUpperCase() === nombre.toUpperCase());
+        return hit ? hit.total : 0;
+      };
+      filas.push([nombre, (p) => fmt(leer(p)), leer, false]);
+    });
+    const head = `<tr><th></th>${cols.map((p) => {
+      const on = entra(p);
+      return `<th class="${on ? "" : "off"}"><label><input class="chksum" type="checkbox" data-sumar="${esc(p.nombre)}" ${on ? "checked" : ""}/>${esc(p.nombre)}<span class="fecha">${esc(p.fecha || "")}</span></label></th>`;
+    }).join("")}<th>suma</th></tr>`;
+    const body = filas.map(([lab, texto, num]) => {
+      let sum = 0;
+      const tds = cols.map((p) => {
+        const n = Number(num(p)) || 0;
+        if (entra(p)) sum += n;
+        return `<td class="n ${entra(p) ? "" : "off"}">${texto(p)}</td>`;
+      }).join("");
+      const stxt = lab === "muc hora" ? fmtHora(sum) : (lab === "muc diario" ? fmtDiario(sum) : fmt(Math.round(sum)));
+      return `<tr><td>${esc(lab)}</td>${tds}<td class="n cream">${stxt}</td></tr>`;
+    }).join("");
+    app.innerHTML = `<header>${bannerApk()}<button class="back" id="volver">‹ Volver</button><h1>Resultados</h1><p class="sub">El checkbox saca o pone al personaje en la suma.</p></header>
+      <section class="pad"><div class="tabla-wrap"><table class="tabla-res">${head}${body}</table></div></section>`;
+    app.querySelector("#volver").onclick = () => { state.pantalla = "lista"; render(); };
+    app.querySelectorAll("[data-sumar]").forEach((box) => box.onchange = () => {
+      state.sumar[box.getAttribute("data-sumar")] = box.checked;
+      try { localStorage.setItem("mu-sumar", JSON.stringify(state.sumar)); } catch (err) {}
+      render();
+    });
+    return;
+  }
+
   const servidores = state.servidores.length ? state.servidores : [...new Set(state.personajes.map((p) => p.servidor).filter(Boolean))].sort((a, b) => a.localeCompare(b));
   const cards = state.personajes.map((p) => {
     const hit = `<button class="hit" type="button" data-n="${esc(p.nombre)}"><div class="name"><strong>${esc(p.nombre)}</strong><span>${esc(p.servidor)}</span></div>${mucHtml(p, false)}<p class="fecha">${esc(p.fecha)}</p></button>`;
+    const on = !!state.nobot[p.nombre];
+    const nobot = `<label class="nobot"><input type="checkbox" data-nobot="${esc(p.nombre)}" ${on ? "checked" : ""}/>NO BOT</label>`;
     const foto = `<button class="line mini" type="button" data-foto="${esc(p.nombre)}" data-srv="${esc(p.servidor)}">Contar</button>`;
-    const act = window.MU_MASTER ? "" : "";
-    return `<div class="card">${hit}<div class="acts">${foto}${act}</div></div>`;
+    const items = `<button class="line mini" type="button" data-items="${esc(p.nombre)}" data-srv="${esc(p.servidor)}">Contar items y muc</button>`;
+    return `<div class="card">${hit}${nobot}<div class="acts">${foto}${items}</div></div>`;
   }).join("");
   let servidoresHtml = "";
   if (window.MU_MASTER) {
@@ -380,7 +448,9 @@ function render() {
   const personajes = `<section class="pad"><h2>PERSONAJES</h2><div class="list">${cards || '<p class="sub">Todavía no hay personajes en el inventario.</p>'}</div>${notaContar}</section>`;
   app.innerHTML = `<header><p class="kicker">MU</p><h1>${esc(titulo())}</h1>${botonesComunes()}</header>${window.MU_MASTER ? personajes + servidoresHtml + cuentas : `<div class="pad list">${cards || '<p class="sub">No hay instancias para esta cuenta.</p>'}</div>${notaContar}`}`;
   const listaBtn = app.querySelector("#listaBtn");
-  if (listaBtn) listaBtn.onclick = () => { if (window.Nativo) window.Nativo.compartir("inventario-maestro.xls", listaXml()); };
+  if (listaBtn) listaBtn.onclick = () => { if (window.Nativo) window.Nativo.compartir("resultados.xls", listaXml()); };
+  const resBtn = app.querySelector("#resBtn");
+  if (resBtn) resBtn.onclick = () => { state.pantalla = "resultados"; render(); };
   const upd = app.querySelector("#upd");
   if (upd) upd.onclick = actualizar;
   const ch = app.querySelector("#cambiar");
@@ -406,23 +476,27 @@ function render() {
     const claves = Object.keys(grupos);
     if (!claves.length) { state.aviso = "Marca al menos un personaje"; render(); return; }
     if (!window.Nativo || !window.Nativo.orden) { state.aviso = "Actualiza la app para enviar la orden"; render(); return; }
-    claves.forEach((servidor) => window.Nativo.orden(servidor, "foto", grupos[servidor].join(",")));
+    claves.forEach((servidor) => window.Nativo.orden(servidor, "foto", grupos[servidor].join(","), "0"));
   };
   const actsrv = app.querySelector("#actsrv");
   if (actsrv) actsrv.onclick = () => {
     if (!state.tab) return;
     if (!window.Nativo || !window.Nativo.orden) { state.aviso = "Actualiza la app para enviar la orden"; render(); return; }
-    window.Nativo.orden(state.tab, "actualizar", "-");
+    window.Nativo.orden(state.tab, "actualizar", "-", "0");
   };
-  app.querySelectorAll("[data-foto],[data-act]").forEach((btn) => btn.onclick = () => {
-    const activar = btn.hasAttribute("data-act");
-    const nombre = btn.getAttribute(activar ? "data-act" : "data-foto");
+  app.querySelectorAll("[data-foto],[data-items]").forEach((btn) => btn.onclick = () => {
+    const items = btn.hasAttribute("data-items");
+    const nombre = btn.getAttribute(items ? "data-items" : "data-foto");
     const servidor = btn.getAttribute("data-srv") || "";
     if (!servidor) { state.aviso = "Ese personaje no tiene servidor"; render(); return; }
     if (!window.Nativo || !window.Nativo.orden) { state.aviso = "Actualiza la app para enviar la orden"; render(); return; }
     state.aviso = "Enviando...";
     render();
-    window.Nativo.orden(servidor, activar ? "activar" : "foto", nombre);
+    window.Nativo.orden(servidor, items ? "items" : "foto", nombre, state.nobot[nombre] ? "1" : "0");
+  });
+  app.querySelectorAll("[data-nobot]").forEach((box) => box.onchange = () => {
+    state.nobot[box.getAttribute("data-nobot")] = box.checked;
+    try { localStorage.setItem("mu-nobot", JSON.stringify(state.nobot)); } catch (err) {}
   });
   app.querySelectorAll("[data-c]").forEach((btn) => btn.onclick = () => abrirCuenta(btn.getAttribute("data-c")));
   const nueva = app.querySelector("#nueva");
@@ -635,31 +709,34 @@ window.__respuesta = function (obj) {
   if (el) el.textContent = texto;
   else render();
 };
-function avisoDeCola(map) {
-  const lines = [];
+function lineasDeCola(map) {
+  const pasos = [];
+  const colas = [];
   Object.keys(map || {}).forEach((srv) => {
     String(map[srv] || "").split(/\r?\n/).forEach((raw) => {
       const line = raw.trim();
-      let m = line.match(/^TURNO\s+(.+)$/i);
-      if (m) { lines.push("Turno de " + m[1] + ": sacando foto y contando"); return; }
+      if (!line || line === "LIBRE") return;
+      let m = line.match(/^PASO\s+(.+)$/i);
+      if (m) { pasos.push(m[1]); return; }
       m = line.match(/^COLA\s+(\d+)\s+(.+)$/i);
-      if (m) lines.push(m[2] + " en cola, posición " + m[1]);
+      if (m) colas.push("conteo " + m[2].replace(/^ITEMS\s+/i, "") + " en cola posicion " + m[1]);
     });
   });
-  return lines.join(" · ");
+  return pasos.concat(colas).slice(-5);
 }
 window.__cola = function (obj) {
-  const texto = avisoDeCola(obj);
-  const antes = state.avisoCola || "";
-  if (texto === antes) return;
-  state.avisoCola = texto;
-  if (state.avisoRespuesta && !texto) return;
-  if (texto && state.avisoRespuesta) state.aviso = state.avisoRespuesta + " · " + texto;
-  else if (texto) state.aviso = texto;
-  else if (state.aviso === antes) state.aviso = "";
-  const el = document.querySelector(".warn");
-  if (el) el.textContent = state.aviso || "";
-  else if (texto || antes) render();
+  const lineas = lineasDeCola(obj);
+  const antes = JSON.stringify(state.log5 || []);
+  if (JSON.stringify(lineas) === antes) return;
+  state.log5 = lineas;
+  const el = document.querySelector("#log5");
+  if (el) {
+    const show = lineas.slice();
+    while (show.length < 5) show.push("");
+    el.innerHTML = show.map((l) => `<p>${esc(l)}</p>`).join("");
+    return;
+  }
+  if (state.cuenta && (state.pantalla === "lista" || state.pantalla === "resultados")) render();
 };
 setInterval(() => {
   if (state.cuenta && window.Nativo && window.Nativo.cola) window.Nativo.cola();

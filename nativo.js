@@ -124,11 +124,11 @@
     return p.replace(/[^/]*$/, "");
   }
 
-  async function leerPublico() {
-    if (window.__publico) return window.__publico;
+  async function leerPublico(force) {
+    if (window.__publico && (!force || (Date.now() - (window.__publicoAt || 0) < 20000))) return window.__publico;
     const clave = pageKey();
     if (!clave) throw new Error("Este enlace no está completo");
-    const res = await fetch(raiz() + "datos.enc?v=" + Math.floor(Date.now() / 60000), { cache: "no-store" });
+    const res = await fetch(raiz() + "datos.enc?v=" + Date.now(), { cache: "no-store" });
     if (!res.ok) throw new Error("No se pudo leer el inventario (" + res.status + ")");
     const pack = await res.json();
     const rawKey = await crypto.subtle.importKey("raw", hexBytes(clave), "AES-GCM", false, ["decrypt"]);
@@ -139,17 +139,18 @@
       throw new Error("Este enlace no está completo");
     }
     window.__publico = JSON.parse(new TextDecoder().decode(plain));
+    window.__publicoAt = Date.now();
     return window.__publico;
   }
 
-  async function enviarOrdenPublica(srv, quien, aviso) {
+  async function enviarOrdenPublica(srv, quien, aviso, verbo, marca) {
     const datos = await leerPublico();
     const topic = String((datos && datos.buzon) || "").trim();
     if (!/^[A-Za-z0-9_-]{16,80}$/.test(topic)) throw new Error("Todavía no se puede enviar desde la página");
     if (!/^[A-Za-z0-9_-]{1,40}$/.test(srv)) throw new Error("Servidor no válido");
     const res = await fetch("https://ntfy.sh/" + topic, {
       method: "POST",
-      body: srv + "|FOTO " + quien + " @PAGINA",
+      body: srv + "|" + verbo + " " + quien + " @PAGINA" + marca,
       headers: { Priority: "min", Title: "orden" }
     });
     if (!res.ok) throw new Error("No se pudo enviar la orden");
@@ -212,18 +213,21 @@
         window.__guardado();
       })().catch(function (err) { window.__error(err.message); });
     },
-    orden: function (servidor, accion, nombre) {
+    orden: function (servidor, accion, nombre, nobot) {
       const srv = String(servidor || "").trim();
       const quien = String(nombre || "").trim();
       const actualizar = accion === "actualizar";
       const activar = accion === "activar";
-      let aviso = actualizar ? ("Actualizar enviado: " + srv) : (activar ? ("Activar enviado: " + quien) : (quien.indexOf(",") >= 0 ? "Fotos y conteo enviados" : ("Foto y contar enviado: " + quien)));
+      const items = accion === "items";
+      const verbo = items ? "ITEMS" : "FOTO";
+      const marca = nobot === "1" || nobot === true || nobot === "si" ? " NOBOT" : "";
+      let aviso = actualizar ? ("Actualizar enviado: " + srv) : (activar ? ("Activar enviado: " + quien) : (items ? ("Items y MUC enviado: " + quien) : (quien.indexOf(",") >= 0 ? "Fotos y conteo enviados" : ("Foto y contar enviado: " + quien))));
       if (!token()) {
         if (actualizar || activar) { window.__error("Desde este enlace solo se ve el inventario"); return; }
-        enviarOrdenPublica(srv, quien, aviso).catch(function (err) { window.__error(err.message); });
+        enviarOrdenPublica(srv, quien, aviso, verbo, marca).catch(function (err) { window.__error(err.message); });
         return;
       }
-      let linea = actualizar ? "ACTUALIZAR\n" : (activar ? ("ACTIVAR " + quien + "\n") : ("FOTO " + quien + " @PAGINA\n"));
+      let linea = actualizar ? "ACTUALIZAR\n" : (activar ? ("ACTIVAR " + quien + "\n") : (verbo + " " + quien + " @PAGINA" + marca + "\n"));
       putText("servidores/" + srv + "/orden.txt", linea, linea.trim() + " " + srv)
         .then(function () { window.__apkEstado(aviso); })
         .catch(function (err) { window.__error(err.message); });
@@ -246,7 +250,7 @@
     },
     cola: function () {
       if (!token()) {
-        leerPublico().then(function (datos) {
+        leerPublico(true).then(function (datos) {
           window.__cola(datos.colas || {});
           return leerRespuestasPublicas(datos && datos.buzon);
         }).catch(function () {});
@@ -281,6 +285,6 @@
 
   window.MU_ORIGEN = "PAGINA";
   const script = document.createElement("script");
-  script.src = new URL("app.js?v=113", document.currentScript.src).href;
+  script.src = new URL("app.js?v=114", document.currentScript.src).href;
   document.body.appendChild(script);
 })();
