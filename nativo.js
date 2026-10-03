@@ -66,11 +66,38 @@
     return res.json();
   }
 
+  async function rawText(path) {
+    const res = await fetch("https://raw.githubusercontent.com/jorgemazu/farmboss-inventario/main/" + path, {
+      headers: {
+        Authorization: "Bearer " + token(),
+        Accept: "application/vnd.github.raw",
+        "User-Agent": "inventario-lectura"
+      }
+    });
+    if (!res.ok) throw new Error("No se pudo leer el inventario (" + res.status + ")");
+    return (await res.text()).replace(/^\uFEFF/, "");
+  }
+
   async function fileText(path) {
-    const file = await gh("GET", "/contents/" + path);
+    let file = null;
+    try {
+      file = await gh("GET", "/contents/" + path);
+    } catch (err) {
+      return rawText(path);
+    }
     if (file && file.content && file.encoding === "base64") return de64(file.content);
-    if (file && file.sha) return String(await gh("GET", "/git/blobs/" + file.sha, null, "application/vnd.github.raw")).replace(/^\uFEFF/, "");
-    throw new Error("No se pudo leer " + path);
+    if (file && file.download_url) {
+      try {
+        const bajada = await fetch(file.download_url, { headers: { Authorization: "Bearer " + token(), "User-Agent": "inventario-lectura" } });
+        if (bajada.ok) return (await bajada.text()).replace(/^\uFEFF/, "");
+      } catch (err) {}
+    }
+    if (file && file.sha) {
+      try {
+        return String(await gh("GET", "/git/blobs/" + file.sha, null, "application/vnd.github.raw")).replace(/^\uFEFF/, "");
+      } catch (err) {}
+    }
+    return rawText(path);
   }
 
   async function putText(path, text, message) {
@@ -192,7 +219,8 @@
         const pruebas = {};
         for (const item of servers) {
           if (!item || item.type !== "dir" || !item.name) continue;
-          libros[item.name] = JSON.parse(await fileText("servidores/" + item.name + "/libro.json"));
+          try { libros[item.name] = JSON.parse(await fileText("servidores/" + item.name + "/libro.json")); }
+          catch (err) { libros[item.name] = {}; }
           try { estados[item.name] = await fileText("servidores/" + item.name + "/estado.txt"); }
           catch (err) { estados[item.name] = ""; }
           try { pruebas[item.name] = JSON.parse(await fileText("servidores/" + item.name + "/prueba.json")); }
@@ -285,6 +313,6 @@
 
   window.MU_ORIGEN = "PAGINA";
   const script = document.createElement("script");
-  script.src = new URL("app.js?v=117", document.currentScript.src).href;
+  script.src = new URL("app.js?v=118", document.currentScript.src).href;
   document.body.appendChild(script);
 })();
