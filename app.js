@@ -286,7 +286,7 @@ function bannerApk() {
   return `<p class="aviso">Hay una actualización de la app.</p><button class="gold" id="instalarApk" type="button">${state.instalando ? "Descargando..." : "Actualizar"}</button>`;
 }
 
-function titulo() { return window.MU_MASTER ? "FarmBoss Inventario Master" : "FarmBoss Inventario"; }
+function titulo() { return "FarmBoss Inventario WEB"; }
 
 function logHtml() {
   const lines = (state.log5 || []).slice(-5);
