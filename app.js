@@ -50,9 +50,9 @@ function mejor(a, b) {
   return a.items.length >= b.items.length ? a : b;
 }
 function whenOf(fecha) {
-  const m = String(fecha).match(/^(\d{4})-(\d{2})-(\d{2})[ T](\d{2}):(\d{2})/);
+  const m = String(fecha).match(/^(\d{4})-(\d{2})-(\d{2})[ T](\d{2}):(\d{2})(?::(\d{2}))?/);
   if (!m) return null;
-  return new Date(+m[1], +m[2] - 1, +m[3], +m[4], +m[5]).getTime();
+  return new Date(+m[1], +m[2] - 1, +m[3], +m[4], +m[5], m[6] ? +m[6] : 0).getTime();
 }
 function mucRate(lecturas) {
   const serie = lecturas.map((row) => ({ row, when: whenOf(row.fecha) })).filter((row) => row.when !== null && row.row.muc > 0).sort((a, b) => a.when - b.when || a.row.fecha.localeCompare(b.row.fecha));
@@ -66,7 +66,7 @@ function mucRate(lecturas) {
   if (!base) return { hora: 0, diario: 0 };
   const dm = last.row.muc - base.row.muc;
   const hours = (last.when - base.when) / 3600000;
-  if (dm <= 0 || hours < 0.02) return { hora: 0, diario: 0 };
+  if (dm <= 0 || hours < 30 / 3600) return { hora: 0, diario: 0 };
   const hora = dm / hours;
   return { hora: Math.round(hora * 10) / 10, diario: Math.round(hora * 24) };
 }
@@ -286,7 +286,7 @@ function bannerApk() {
   return `<p class="aviso">Hay una actualización de la app.</p><button class="gold" id="instalarApk" type="button">${state.instalando ? "Descargando..." : "Actualizar"}</button>`;
 }
 
-function titulo() { return window.MU_MASTER ? "MU MASTER INVENTARIO" : "MU INVENTARIO"; }
+function titulo() { return window.MU_MASTER ? "FarmBoss Inventario Master" : "FarmBoss Inventario"; }
 
 function logHtml() {
   const lines = (state.log5 || []).slice(-5);
@@ -311,7 +311,7 @@ function botonesComunes() {
 function render() {
   const app = document.getElementById("app");
   if (!state.cuenta) {
-    app.innerHTML = `<main><p class="kicker">MU</p><h1>${esc(titulo())}</h1><p class="sub">Ingresa el numero de cuenta</p>
+    app.innerHTML = `<main><p class="kicker">FARMBOSS</p><h1>${esc(titulo())}</h1><p class="sub">Ingresa el numero de cuenta</p>
       ${bannerApk()}
       <form id="login"><input id="num" inputmode="numeric" maxlength="12" placeholder="Ejemplo: 1" /><button class="gold" type="submit">Entrar</button></form></main>`;
     app.querySelector("#login").onsubmit = (e) => {
@@ -326,7 +326,7 @@ function render() {
     return;
   }
   if (!state.archivo) {
-    app.innerHTML = `<main><p class="kicker">MU</p><h1>${esc(titulo())}</h1>${bannerApk()}<p class="sub">${esc(state.aviso || "Leyendo...")}</p></main>`;
+    app.innerHTML = `<main><p class="kicker">FARMBOSS</p><h1>${esc(titulo())}</h1>${bannerApk()}<p class="sub">${esc(state.aviso || "Leyendo...")}</p></main>`;
     return;
   }
   const acc = acceso();
@@ -336,7 +336,7 @@ function render() {
     return;
   }
   if (window.MU_MASTER && !acc.control) {
-    app.innerHTML = `<main>${bannerApk()}<p class="warn">Esta cuenta no abre MU MASTER INVENTARIO</p><button class="line" id="cambiar">Cambiar cuenta</button></main>`;
+    app.innerHTML = `<main>${bannerApk()}<p class="warn">Esta cuenta no abre FarmBoss Inventario Master</p><button class="line" id="cambiar">Cambiar cuenta</button></main>`;
     app.querySelector("#cambiar").onclick = cambiar;
     return;
   }
@@ -362,7 +362,7 @@ function render() {
       <button class="back" id="volver">‹ Volver</button>
       <p class="kicker">NÚMERO DE CUENTA</p>
       <input id="num" inputmode="numeric" maxlength="12" value="${esc(e.numero)}" />
-      <p class="sub">Hasta 12 dígitos. Mientras más largo, más difícil de adivinar. Ese número se escribe en MU INVENTARIO.</p>
+      <p class="sub">Hasta 12 dígitos. Mientras más largo, más difícil de adivinar. Ese número se escribe en FarmBoss Inventario.</p>
       <label class="sub">Nombre<input id="nom" value="${esc(e.nombre)}" /></label>
       <button class="line ${e.actualizar ? "on" : ""}" id="act">${e.actualizar ? "Puede actualizar" : "No actualiza el programa"}</button>
       <button class="line ${e.control ? "on" : ""}" id="ctl">${e.control ? "También abre Master" : "Solo el lector"}</button>
@@ -462,7 +462,7 @@ function render() {
     </section>` : "";
   const notaContar = window.ES_PAGINA ? `<p class="sub">Contar puede demorar hasta 20 segundos en accionar.</p>` : "";
   const personajes = `<section class="pad"><h2>PERSONAJES</h2><div class="list">${cards || '<p class="sub">Todavía no hay personajes en el inventario.</p>'}</div>${notaContar}</section>`;
-  app.innerHTML = `<header><p class="kicker">MU</p><h1>${esc(titulo())}</h1>${botonesComunes()}</header>${window.MU_MASTER ? personajes + servidoresHtml + cuentas : `<div class="pad list">${cards || '<p class="sub">No hay instancias para esta cuenta.</p>'}</div>${notaContar}`}`;
+  app.innerHTML = `<header><p class="kicker">FARMBOSS</p><h1>${esc(titulo())}</h1>${botonesComunes()}</header>${window.MU_MASTER ? personajes + servidoresHtml + cuentas : `<div class="pad list">${cards || '<p class="sub">No hay instancias para esta cuenta.</p>'}</div>${notaContar}`}`;
   const listaBtn = app.querySelector("#listaBtn");
   if (listaBtn) listaBtn.onclick = () => { if (window.Nativo) window.Nativo.compartir("resultados.xls", listaXml()); };
   const resBtn = app.querySelector("#resBtn");
@@ -550,7 +550,7 @@ window.__datos = function (pack) {
   state.archivo = pack.cuentas || {};
   const acc = acceso();
   if (!acc) { state.aviso = "Esa cuenta no existe"; render(); return; }
-  if (window.MU_MASTER && !acc.control) { state.aviso = "Esta cuenta no abre MU MASTER INVENTARIO"; render(); return; }
+  if (window.MU_MASTER && !acc.control) { state.aviso = "Esta cuenta no abre FarmBoss Inventario Master"; render(); return; }
   procesar(pack.libros || {});
   state.servidores = Object.keys(pack.libros || {}).sort((a, b) => a.localeCompare(b));
   state.estados = pack.estados || {};
@@ -749,17 +749,19 @@ function lineasDeCola(map) {
 }
 window.__cola = function (obj) {
   const lineas = lineasDeCola(obj);
-  const antes = JSON.stringify(state.log5 || []);
-  if (JSON.stringify(lineas) === antes) return;
+  const antes = state.log5 || [];
+  if (JSON.stringify(lineas) === JSON.stringify(antes)) return;
+  const nuevoFin = lineas.some((l) => /termino del conteo/i.test(l) && antes.indexOf(l) < 0);
   state.log5 = lineas;
   const el = document.querySelector("#log5");
   if (el) {
     const show = lineas.slice();
     while (show.length < 5) show.push("");
     el.innerHTML = show.map((l) => `<p>${esc(l)}</p>`).join("");
-    return;
+  } else if (state.cuenta && (state.pantalla === "lista" || state.pantalla === "resultados")) render();
+  if (nuevoFin && state.cuenta && window.Nativo && window.Nativo.cargar && !state.ocupado) {
+    setTimeout(() => { if (!state.ocupado) window.Nativo.cargar(); }, 2500);
   }
-  if (state.cuenta && (state.pantalla === "lista" || state.pantalla === "resultados")) render();
 };
 setInterval(() => {
   if (state.cuenta && window.Nativo && window.Nativo.cola) window.Nativo.cola();

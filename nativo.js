@@ -25,7 +25,7 @@
 
   if (!token() && !pageKey()) {
     document.getElementById("app").innerHTML =
-      '<header><p class="kicker">MU</p><h1>MU INVENTARIO</h1></header>' +
+      '<header><p class="kicker">FARMBOSS</p><h1>FarmBoss Inventario</h1></header>' +
       '<section class="pad"><p class="sub">Este enlace no está completo.</p></section>';
     return;
   }
@@ -396,6 +396,6 @@
 
   window.MU_ORIGEN = "PAGINA";
   const script = document.createElement("script");
-  script.src = new URL("app.js?v=125", document.currentScript.src).href;
+  script.src = new URL("app.js?v=126", document.currentScript.src).href;
   document.body.appendChild(script);
 })();
